@@ -74,7 +74,7 @@ When you are done with your model object you can call destroy to clean everythin
 	User.findById(1).destroy();
 
 
-## What's next
+## That's it
 
 Please download and give it a try, if you find any bugs please tell me I will fix them as soon as I can. If you would like to help contribute your help is more than welcome.
 	
