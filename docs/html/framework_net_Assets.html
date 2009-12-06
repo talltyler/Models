@@ -1,0 +1,517 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Assets</title><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><link rel="stylesheet" type="text/css" href="../css/VisDoc.css" /><script src="../js/jquery.js" type="text/javascript">//</script><script src="../js/common.js" type="text/javascript">//</script><script src="../js/doc.js" type="text/javascript">//</script></head><body id="page_framework_net_Assets"><script type="text/javascript">VisDoc.initBody();</script><div id="PageTop"><!----></div><div class="VisDoc"><div class="content"><div class="docNav"><ul><li><div id="twistyTOC_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenNotFramed"><a href="#"><span class="icon">+</span>Show TOC</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_show");</script><div id="twistyTOC_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenFramed"><a href="#"><span class="icon">&times;</span>Hide TOC</a></div><span id="twistyTOC_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_hide");</script></li></ul><ul class="accessKeyLinks"><li><a href="#PageTop" accesskey="t"><span class="accessKey">T</span>op</a></li><li><a href="#Summary" accesskey="s"><span class="accessKey">S</span>ummary</a></li><li><a href="#Constructor" accesskey="c"><span class="accessKey">C</span>onstructors</a></li><li><a href="#Instanceproperties" accesskey="l">Instance <span class="accessKey">p</span>roperties</a></li><li><a href="#Instancemethods" accesskey="m">Instance <span class="accessKey">m</span>ethods</a></li><li><a href="#Eventhandlers" accesskey="e"><span class="accessKey">E</span>vent handlers</a></li></ul><br class="clear" /></div><h1>Assets</h1><div class="classProperties"><table cellspacing="0"><tr><th align="left">Kind of class:</th><td>public class</td></tr><tr><th align="left">Package:</th><td><a class="className" href="package-framework_net.html">framework.net</a></td></tr><tr><th align="left">Inherits from:</th><td>EventDispatcher</td></tr><tr><th class="classDetails" align="left">Classpath:</th><td class="classDetails">framework.net.Assets</td></tr><tr><th class="classDetails" align="left">File last modified:</th><td class="classDetails">Wednesday, 02 December 2009, 16:18:25</td></tr></table></div><div id="sourceCodeTop" class="sourceCodeView"><div id="twistyViewSourceshow" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">►&nbsp;</span><span class="linkLabel">View source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourceshow");</script><div id="twistyViewSourcehide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">▼&nbsp;</span><span class="linkLabel">Hide source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcehide");</script><div id="twistyViewSourcetoggle" class="twistyContent twistyMakeHidden twistyRememberSetting"><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcetoggle");</script><div class="sourceCode"><textarea rows="10" cols="10" id="source" readonly="readonly">package framework.net
+{
+    import flash.display.*;
+    import flash.events.*;
+    import flash.external.*;
+    import flash.net.*;
+    import flash.system.*;
+    import flash.utils.*;
+    
+    import framework.cache.*;
+    
+    public class Assets extends EventDispatcher
+    {
+        // Asset types
+        public static const GRAPHIC:String = "graphic"; // loaded with Loader
+        public static const SWF:String = "swf"; // loaded with Loader
+        public static const TEXT:String = "text";
+        public static const BINARY:String = "binary";
+        public static const VARIABLES:String = "variables";
+        public static const XMLDATA:String = "xml";
+        public static const JSON:String = "json";
+        public static const REMOVED:String = "removed";
+        
+        private var _cache:Cache;
+        private var _jobs:Array = []; // list of currently open _jobs
+        private var _currentJob:Job; // contains the assets added since the last start call
+        private var _lastJob:Job;
+        private var _assetsLoading:Dictionary = new Dictionary(false);    // list of everything that has already begun loading
+        private var _swfLoaders:Dictionary = new Dictionary(false);         // a workaround; loaderInfo.loader throws an error until the asset is done loading.
+        private var _loaders:Array= []; // so that we have something to stop
+        private var _bytesLoaded:int = 0;
+        private var _bytesTotal:int = 0;
+        private var _speed:Number;
+        private var _speedChecks:Array = [];
+        private var _lastBytesCheck:Number = 0;
+        private var _lastSpeedCheck:int = getTimer();
+        
+        /**
+        *    @Constructor
+        *    @param    cache     all loaded files will be loaded into a Cache object that is passed in here.
+        *    @example
+        *        var l:Assets = new Assets();
+        *        var j:* = l.currentJob;     
+        *        l.add("file.txt", options);
+        *        j.addEventListener(ProgressEvent.PROGRESS, onProgress);
+        *        j.addEventListener(Event.COMPLETE, onComplete);
+        *        l.start();
+        */
+        public function Assets( cache:Cache=null )
+        {
+            super();
+            
+            if( cache == null ){
+                _cache = new Cache()
+            }else{
+                _cache = cache;
+            }
+            _currentJob = new Job();
+        }
+        
+        /**
+         *    Public getter for _cache
+         */
+        public function get cache():Cache
+        { 
+            return _cache; 
+        }
+        public function set cache( value:Cache ):void
+        { 
+            _cache = value; 
+        }
+        
+        
+        /**
+         *    This method adds new assets to be loaded.
+         *    @example
+         *        var assets:Assets = new Assets();
+         *        assets.add('myFile.jpg').addEventListener(Event.COMPLETE,onFileLoaded);
+         *        assets.load();
+         *    @param    url     The path to the file you would like to load as a String 
+         *    @param    options     Object of potencail objects for this file while loading
+         *    @return    Returns an instance of the Asset that it has created, you can listen to and retrieve info from this
+         */
+        public function add( url:String, options:Object=null ) : Asset
+        {
+            // pushes the asset onto the next job, and gives the job reference to the asset
+            var asset:Asset
+            
+            if( options == null )
+                asset = new Asset( url, url, _currentJob );
+            else
+                asset = new Asset( url, options.name||url, options.job||_currentJob, options.type, options.method );
+            
+            asset.job.push( asset );
+            
+            return asset;
+        }
+        
+        /**
+         *    This is a helper function for anyone that likes code completion while defining options for calling the add method.
+         *    You dont need to use this but it makes things a little simpler unless you want to define just one paramiter. 
+         *    @param    name         The name that you can reference your asset from within the cache.
+         *    @param    type         The type of file that we need to load, either; text, graphic or swf
+         *    @param    method         The HTTP method that you would like to use, GET or POST
+         *    @param    job             If you would like to push this Asset into a job that is still loading
+         *    @param    onComplete    To automaticly call a method when the asset is loaded you can define a call back here 
+         *    @return    Returns a simple object with these paramiters inside of it.
+         */
+        public function options( name:String=null, type:String="text", method:String="get", job:Job=null, onComplete:Function=null ) : Object
+        {
+            return { name:name, job:job||_currentJob, type:type, method:method, onComplete:onComplete };
+        }
+        
+        /**
+         *    Start the loading with this method. Every time you call load() the current Job is closed and 
+         *    the files within it start loading. This Job will keep track of all of the files that you have added to it.
+         *    If you run accross security issues pass in a MouseEvent as an argument. 
+         *    This is normally not needed unless you are posting files.
+         *    @example
+         *        var assets:Assets = new Assets();
+         *        assets.add('myFile.jpg');
+         *        assets.load().addEventListener(Event.COMPLETE,onAssetsLoaded);
+         *    @param    event     Because of the security restrictions while posting data, 
+         *        if you are going to upload anything you should pass in a MouseEvent to load.
+         *    @return    Returns an instance of the Job that everything is being loaded within. 
+         *        You can listen for events on this Job object or get reference to the things loaded.
+         */
+        public function load( event:MouseEvent=null ):Job
+        {
+            var job:Job = _currentJob;
+            _currentJob.event = event;
+            _lastBytesCheck = 0;
+            _lastSpeedCheck = getTimer();
+            _currentJob.forEach(startLoading);
+            _jobs.push(_currentJob);
+            _lastJob = _currentJob;
+            _currentJob = new Job();
+            return job; 
+        }
+        
+        /**
+         *    @return        Returns the Job that is currently being used to add Assets to.
+         */
+        public function get currentJob() : Job {
+            return _currentJob;
+        }
+        
+        /**
+         *    Stops all the Assets from loading that are in process
+         */
+        public function close() : void
+        {
+            for each( var loader:* in _loaders ){
+                loader.close()
+            }
+        }
+        
+        /**
+         *    Get the number of bytes loaded in total for everything that is loading
+         *    @return        Returns a int of the total number of bytes that have been loaded for all jobs
+         */
+        public function get bytesLoaded():int 
+        {
+            _bytesLoaded = 0;
+            for each (var job:Job in _jobs) {
+                if (job.bytesLoaded) {
+                    _bytesLoaded += job.bytesLoaded;
+                }
+            }
+            return _bytesLoaded;
+        }
+
+        /**
+         *    Get the number of bytes to be loaded in total for everything that is loading
+         *    @return        Returns a int of the total number of bytes that are known to be needed to load for all jobs
+         */
+        public function get bytesTotal():int 
+        {
+            _bytesTotal = 0;
+            for each (var job:Job in _jobs) {
+                if (job.bytesTotal) {
+                    _bytesTotal += job.bytesTotal;
+                }
+            }
+            return _bytesTotal;
+        }
+        
+        /**
+         *    Get the speed that you are currently downloading files
+         *    @return        Returns the speed in bytes / second for all loadings
+         */
+        public function get speed() : Number
+        {
+            var timeElapsed:int = getTimer() - _lastSpeedCheck;
+            var bytesDelta:Number = (bytesLoaded - _lastBytesCheck); // / 1024
+            if(bytesDelta>0) {
+                _speed = Math.abs(bytesDelta)/(timeElapsed/1000);
+                _speedChecks.push( _speed );
+            } 
+            _lastSpeedCheck = timeElapsed;
+            _lastBytesCheck = _bytesLoaded;
+            return _speed;
+        }
+        
+        /**
+         *    This is an average of all of the checks together
+         *    @return        Returns the average speed in bytes / second across all speed checks
+         */
+        public function get averageSpeed():Number
+        {
+            var average:Number = 0;
+            for each( var speed:Number in _speedChecks ) {
+                average += speed;
+            }
+            return average/_speedChecks.length;
+        }
+        
+        /**
+         *    Used to remove the instances of everything needed to load an Asset after that Asset is loaded.
+         *    If you would like to remove an Asset that should be done inside of the Cache.
+         *    @private
+         *    @param    asset     reference for the Asset that you would like to remove.
+         */
+        private function remove(asset:Asset):void
+        {
+            // expels a asset from its job
+            asset.dispatchEvent( new Event( REMOVED ) );
+            delete _assetsLoading[asset];
+            var job:Job = asset.job;
+            job.dispatchEvent( new Event( REMOVED ) );
+            job.remove(asset);
+            if( job.length == 0 ) endJob(job);
+        }
+        
+        /**
+         *    Expels a loader from the loaders list
+         *    @private
+         *    @param    target     Either a URLLoaderExtended or LoaderExtended object to be deleted
+         */
+        private function removeLoader(target:*):void 
+        {
+            if (target is URLLoaderExtended) {
+                _loaders.splice(_loaders.indexOf(target), 1);
+            } else if (target is LoaderInfo) {
+                _loaders.splice(_loaders.indexOf(_swfLoaders[target]), 1);
+                delete _swfLoaders[target];
+            } else {
+                trace("removeLoader:: unidentified target");
+            }
+        }
+        
+        /**
+         *    Gets the asset associated with a Loader or URLLoader instance
+         *    @private
+         *    @param    target     The Loader instance that this Asset is associated with.
+         *    @return    Returns the asset object related to the target
+         */
+        private function assetOf(target:*):Asset 
+        {
+            if (target is URLLoaderExtended) {
+                return target.asset;
+            } else if (target is LoaderInfo) {
+                return _swfLoaders[target].asset;
+            } else {
+                trace("assetOf:: unidentified target");
+            }
+            return null;
+        }
+        
+        /**
+         *    Starts a asset loading in currentJob.
+         *    @private
+         *    @param    asset     The Asset that you want to start loading
+         *    dont worry about the other arguments they are not used.
+         */
+        private function startLoading(asset:Asset, index:int, arr:Array):void 
+        {
+            if( _assetsLoading[asset] == null ) {
+                _assetsLoading[asset] = asset;
+                switch ( asset.type ) {
+                    case TEXT : loadText( asset, asset.job.event ); break;
+                    case GRAPHIC : case SWF : loadSwf( asset, asset.job.event ); break;
+                    default : 
+                        trace("Unknown file type.", asset.url, asset.type); 
+                        _currentJob.remove(asset);
+                        break;
+                }
+              }
+        }
+        
+        /**
+         *    Create a URLLoaderExtended for a text Asset to load
+         *    @private
+         *    @param    asset     The Asset that you would like to load.
+         *    @param    event     The MouseEvent that you might have passed into the load method
+         *    @return    Returns a URLLoaderExtended instance that was used to load the Asset
+         */
+        private function loadText( asset:Asset, event:Event=null ) : URLLoaderExtended
+        {
+            var req:URLRequest = new URLRequest( asset.url.rawString );
+            var loader:URLLoaderExtended = new URLLoaderExtended();
+            loader.asset = asset;
+            asset.loader = loader;
+            
+            asset.setRequestVaribles( req );
+            
+            loader.addEventListener( ProgressEvent.PROGRESS, onProgress );
+            loader.addEventListener( IOErrorEvent.IO_ERROR, onIOError );
+            loader.addEventListener( Event.COMPLETE, onLoadText );
+            
+            loader.dataFormat = setDataFormat( asset.format );
+            
+            loader.load( req )
+
+            _loaders.push( loader )
+            
+            return loader
+        }
+        
+        /**
+         *    Handles the completion of the loading process for a text Asset.
+         *    @private
+         *    @param    event     The event that the complete event has passed through
+         */
+        private function onLoadText( event:Event ) : void
+        {    
+            var asset:Asset = event.target.asset;
+            
+            if( asset.format == XMLDATA ){
+                event.target.data = new XML(event.target.data);
+            }else if( asset.format == JSON ){ 
+             // JavaScript's JSON parser built in and faster than Adobe's class, we can use it like this.
+                event.target.data = ExternalInterface.call("function(){return "+event.target.data+"}");
+            }
+            asset.data = event.target.data;
+            //asset.data = getFormatedData( event.target.data, asset.format );
+
+            _cache[asset.name] = asset;
+            asset.dispatchEvent( event );
+            remove(assetOf(event.target));
+            removeLoader(event.target);
+        }
+        
+        /**
+         *    Starts up a Loader for a SWF/image asset
+         *    @private
+         *    @param    asset     The Asset that you would like to load.
+         *    @param    event     The MouseEvent that you might have passed into the load method
+         *    @return    Returns a LoaderExtended instance that was used to load the Asset
+         */
+        private function loadSwf( asset:Asset, event:Event=null ) : Loader
+        {
+            var req:URLRequest = new URLRequest( asset.url.rawString )
+            var loader:LoaderExtended = new LoaderExtended();
+            _swfLoaders[loader.contentLoaderInfo] = loader;
+            loader.asset = asset;
+            asset.loader = loader;
+            
+            asset.setRequestVaribles( req );
+            
+            loader.contentLoaderInfo.addEventListener( ProgressEvent.PROGRESS, onProgress )
+            loader.contentLoaderInfo.addEventListener( IOErrorEvent.IO_ERROR, onIOError )
+            loader.contentLoaderInfo.addEventListener( Event.COMPLETE, onLoadSwf )
+            
+            var loaderContext:LoaderContext = new LoaderContext();
+            loaderContext.checkPolicyFile = true;
+            loaderContext.securityDomain = SecurityDomain.currentDomain;
+            loaderContext.applicationDomain = ApplicationDomain.currentDomain;
+            loader.load( req, loaderContext )
+            
+            _loaders.push( loader )
+            
+            return loader
+        }
+        
+        /**
+         *    Handles the completion of a SWF/image file's load
+         *    @private
+         *    @param    event     The event that the complete event has passed through
+         */
+        private function onLoadSwf( event:Event ) : void
+        {
+            var asset:Asset = assetOf(event.target);
+            asset.data = event.target.content;
+            if (asset.content is Bitmap) asset.content.smoothing = true;
+            _cache[asset.name] = asset;
+            asset.dispatchEvent( event );
+            remove(assetOf(event.target));
+            removeLoader(event.target);
+        }
+        
+        /**
+         *    When loading text data, it can be transformed by the URLLoader into that format when it is complete
+         *    Because some data formats are just other forms of text the framework converts them later differently.
+         *    @private
+         *    @return        Returns a String constant for the data format
+         */
+        private function setDataFormat( format:String = "text" ):String
+        {
+            if( format == TEXT || format == XMLDATA || format == JSON ) {
+                return TEXT;
+            }else if( format == BINARY || format == VARIABLES ){
+                return format;
+            }
+            return "This format isn't supported";
+        }
+        
+        /**
+         *    Cleans up a job, now that its files are all loaded
+         *    @private
+         *    @param    job     The Job object that has finished
+         */
+        private function endJob(job:Job):void 
+        {
+            _jobs.splice(_jobs.indexOf(job));
+            
+            var progressEvent:ProgressEvent = new ProgressEvent( ProgressEvent.PROGRESS, true, false, 100, 100 );
+            var completeEvent:Event = new Event( Event.COMPLETE, true );
+            
+            job.dispatchEvent( progressEvent );
+            job.dispatchEvent( completeEvent );
+            
+            dispatchEvent( progressEvent )
+            if( _jobs.length == 0 ) dispatchEvent( completeEvent );
+            
+            job.wipe();
+        }
+        
+        /**
+         *    Dispatches progress events for all loaders
+         *    @private
+         *    @param    event     The ProgressEvent
+         */
+        private function onProgress( event:ProgressEvent ) : void
+        {
+            var progressEvent:ProgressEvent
+            
+            var asset:Asset = assetOf(event.target);
+            asset.bytesLoaded = event.bytesLoaded;
+            asset.bytesTotal ||= event.bytesTotal;
+            progressEvent = new ProgressEvent( ProgressEvent.PROGRESS, true, false, asset.bytesLoaded, asset.bytesTotal ); 
+            asset.dispatchEvent(progressEvent)
+            
+            var job:Job = asset.job;
+            progressEvent = new ProgressEvent( ProgressEvent.PROGRESS, true, false, job.bytesLoaded, job.bytesTotal ); 
+            job.dispatchEvent(progressEvent);
+            
+            progressEvent = new ProgressEvent( ProgressEvent.PROGRESS, true, false, bytesLoaded, bytesTotal ); 
+            dispatchEvent(progressEvent)
+        }
+        
+        /**
+         *    Handles IOErrors for all loaders
+         *    @private
+         *    @param    event     The IOErrorEvent
+         */
+        private function onIOError( event:IOErrorEvent ) : void
+        {
+            trace("IOError: ", assetOf(event.target).url);
+            var asset:Asset = assetOf(event.target);
+            asset.dispatchEvent( event );
+            remove(asset);
+            removeLoader(event.target);
+        }
+    }
+}
+
+import framework.net.*;
+import flash.display.Loader;
+import flash.net.URLLoader;
+import flash.events.EventDispatcher;
+/**
+ *  URLLoaderExtended adds a referance to the Asset that it is loading within it.
+ */
+class URLLoaderExtended extends URLLoader {
+    public var asset:Asset;
+    public function URLLoaderExtended(){ super(); }
+}
+/**
+ *  LoaderExtended adds a referance to the Asset that it is loading within it.
+ */
+class LoaderExtended extends Loader {
+    public var asset:Asset;
+    public function LoaderExtended(){ super(); }
+}
+</textarea></div></div></div><div class="classDescription"></div><div class="summary"><h2 id="Summary">Summary</h2><div class="docNav"><ul><li><div id="twistyTypeInfo_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide type info</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_on");</script><div id="twistyTypeInfo_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show type info</a></div><span id="twistyTypeInfo_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_off");</script></li><li><div id="twistySummaries_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide summaries</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSummaries_on");</script><div id="twistySummaries_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show summaries</a></div><span id="twistySummaries_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSummaries_off");</script></li><li><div id="twistySort_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Sort by source order</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_on");</script><div id="twistySort_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Sort alphabetically</a></div><span id="twistySort_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_off");</script></li></ul><br class="clear" /></div><div class="memberList"><div class="memberSummaryPart"><span class="title">Constructor</span><ul class="sortable" id="sortul1"><li class="sortli listnum1"><a href="#Assets">Assets</a><span class="typeInfo"> (cache:<a class="className" href="framework_cache_Cache.html">Cache</a> = null)</span></li></ul></div><div class="memberSummaryPart"><span class="title">Constants</span><ul class="sortable" id="sortul2"><li class="sortli listnum1"><a href="#GRAPHIC">GRAPHIC</a><span class="typeInfo">  : String</span></li><li class="sortli listnum2"><a href="#SWF">SWF</a><span class="typeInfo">  : String</span></li><li class="sortli listnum3"><a href="#TEXT">TEXT</a><span class="typeInfo">  : String</span></li><li class="sortli listnum4"><a href="#BINARY">BINARY</a><span class="typeInfo">  : String</span></li><li class="sortli listnum5"><a href="#VARIABLES">VARIABLES</a><span class="typeInfo">  : String</span></li><li class="sortli listnum6"><a href="#XMLDATA">XMLDATA</a><span class="typeInfo">  : String</span></li><li class="sortli listnum7"><a href="#JSON">JSON</a><span class="typeInfo">  : String</span></li><li class="sortli listnum8"><a href="#REMOVED">REMOVED</a><span class="typeInfo">  : String</span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance properties</span><ul class="sortable" id="sortul3"><li class="sortli listnum1"><a href="#cache">cache</a><span class="typeInfo">  : <a class="className" href="framework_cache_Cache.html">Cache</a></span><ul class="summary"><li>    Public getter for _cache</li></ul></li><li class="sortli listnum2"><a href="#currentJob">currentJob</a><span class="typeInfo">  : <a class="className" href="framework_net_Job.html">Job</a></span></li><li class="sortli listnum3"><a href="#bytesLoaded">bytesLoaded</a><span class="typeInfo">  : int</span><ul class="summary"><li>    Get the number of bytes loaded in total for everything that is loading</li></ul></li><li class="sortli listnum4"><a href="#bytesTotal">bytesTotal</a><span class="typeInfo">  : int</span><ul class="summary"><li>    Get the number of bytes to be loaded in total for everything that is loading</li></ul></li><li class="sortli listnum5"><a href="#speed">speed</a><span class="typeInfo">  : Number</span><ul class="summary"><li>    Get the speed that you are currently downloading files</li></ul></li><li class="sortli listnum6"><a href="#averageSpeed">averageSpeed</a><span class="typeInfo">  : Number</span><ul class="summary"><li>    This is an average of all of the checks together</li></ul></li></ul></div><div class="memberSummaryPart"><span class="title">Instance methods</span><ul class="sortable" id="sortul4"><li class="sortli listnum1"><a href="#add">add</a><span class="typeInfo"> (url:String, options:Object = null) : <a class="className" href="framework_net_Asset.html">Asset</a></span><ul class="summary"><li>    This method adds new assets to be loaded.</li></ul></li><li class="sortli listnum2"><a href="#options">options</a><span class="typeInfo"> (name:String = null, type:String = "text", method:String = "get", job:<a class="className" href="framework_net_Job.html">Job</a> = null, onComplete:Function = null) : Object</span><ul class="summary"><li>    This is a helper function for anyone that likes code completion while defining options for calling the add method.</li></ul></li><li class="sortli listnum3"><a href="#load">load</a><span class="typeInfo"> (event:MouseEvent = null) : <a class="className" href="framework_net_Job.html">Job</a></span><ul class="summary"><li>    Start the loading with this method.</li></ul></li><li class="sortli listnum4"><a href="#close">close</a><span class="typeInfo">  : void</span><ul class="summary"><li>Stops all the Assets from loading that are in process</li></ul></li></ul></div></div></div><div class="memberSection"><h2 id="Constructor">Constructor</h2><div class="member" id="Assets"><h3>Assets</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>Assets</b> (
+</div><div class="code">cache:<a class="className" href="framework_cache_Cache.html">Cache</a> = null)</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">cache<span class="itemSeparator">:</span></div><div>all loaded files will be loaded into a Cache object that is passed in here.</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Example:</span><div class="item"><ul><li> var l:Assets = new Assets();<br />	var j:* = l.currentJob; 	<br />	l.add("file.txt", options);<br />	j.addEventListener(ProgressEvent.PROGRESS, onProgress);<br />	j.addEventListener(Event.COMPLETE, onComplete);<br />	l.start(); </li></ul></div></div></div></div></div></div><div class="memberSection"><h2 id="Constants">Constants</h2><div class="member" id="BINARY"><h3>BINARY</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>BINARY</b>:String = <span class="codeString">"binary"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div><div class="member" id="GRAPHIC"><h3>GRAPHIC</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>GRAPHIC</b>:String = <span class="codeString">"graphic"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div><div class="member" id="JSON"><h3>JSON</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>JSON</b>:String = <span class="codeString">"json"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div><div class="member" id="REMOVED"><h3>REMOVED</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>REMOVED</b>:String = <span class="codeString">"removed"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div><div class="member" id="SWF"><h3>SWF</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>SWF</b>:String = <span class="codeString">"swf"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div><div class="member" id="TEXT"><h3>TEXT</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>TEXT</b>:String = <span class="codeString">"text"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div><div class="member" id="VARIABLES"><h3>VARIABLES</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>VARIABLES</b>:String = <span class="codeString">"variables"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div><div class="member" id="XMLDATA"><h3>XMLDATA</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>XMLDATA</b>:String = <span class="codeString">"xml"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div></div><div class="memberSection"><h2 id="Instanceproperties">Instance properties</h2><div class="member" id="averageSpeed"><h3>averageSpeed</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>averageSpeed</b>:Number
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div><div class="description">     This is an average of all of the checks together </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the average speed in bytes / second across all speed checks </li></ul></div></div></div></div></div><div class="member" id="bytesLoaded"><h3>bytesLoaded</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>bytesLoaded</b>:int
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div><div class="description">     Get the number of bytes loaded in total for everything that is loading </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns a int of the total number of bytes that have been loaded for all jobs </li></ul></div></div></div></div></div><div class="member" id="bytesTotal"><h3>bytesTotal</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>bytesTotal</b>:int
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div><div class="description">     Get the number of bytes to be loaded in total for everything that is loading </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns a int of the total number of bytes that are known to be needed to load for all jobs </li></ul></div></div></div></div></div><div class="member" id="cache"><h3>cache</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>cache</b>:<a class="className" href="framework_cache_Cache.html">Cache</a>
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div><div class="description">     Public getter for _cache </div></div><div class="member" id="currentJob"><h3>currentJob</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>currentJob</b>:<a class="className" href="framework_net_Job.html">Job</a>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the Job that is currently being used to add Assets to. </li></ul></div></div></div></div></div><div class="member" id="speed"><h3>speed</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>speed</b>:Number
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div><div class="description">     Get the speed that you are currently downloading files </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the speed in bytes / second for all loadings </li></ul></div></div></div></div></div></div><div class="memberSection"><h2 id="Instancemethods">Instance methods</h2><div class="member" id="add"><h3>add</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>add</b> (
+
+</div><div class="code">url:String,
+options:Object = null) : <a class="className" href="framework_net_Asset.html">Asset</a></div><br class="clear" /></div></div><div class="description">     This method adds new assets to be loaded. </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">url    <span class="itemSeparator">:</span></div><div>The path to the file you would like to load as a String </div></div><div class="item"><div class="floatbox code colorizedCode">options<span class="itemSeparator">:</span></div><div>Object of potencail objects for this file while loading</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Example:</span><div class="item"><ul><li> var assets:Assets = new Assets();<br />	assets.add('myFile.jpg').addEventListener(Event.COMPLETE,onFileLoaded);<br />	assets.load(); </li></ul></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns an instance of the Asset that it has created, you can listen to and retrieve info from this </li></ul></div></div></div></div></div><div class="member" id="close"><h3>close</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>close</b> (
+</div><div class="code">) : void</div><br class="clear" /></div></div><div class="description"> Stops all the Assets from loading that are in process </div></div><div class="member" id="load"><h3>load</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>load</b> (
+</div><div class="code">event:MouseEvent = null) : <a class="className" href="framework_net_Job.html">Job</a></div><br class="clear" /></div></div><div class="description">     Start the loading with this method. Every time you call load() the current Job is closed and <br />the files within it start loading. This Job will keep track of all of the files that you have added to it.<br />If you run accross security issues pass in a MouseEvent as an argument. <br />This is normally not needed unless you are posting files. </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">event<span class="itemSeparator">:</span></div><div>Because of the security restrictions while posting data, <br />	if you are going to upload anything you should pass in a MouseEvent to load.</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Example:</span><div class="item"><ul><li> var assets:Assets = new Assets();<br />	assets.add('myFile.jpg');<br />	assets.load().addEventListener(Event.COMPLETE,onAssetsLoaded); </li></ul></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns an instance of the Job that everything is being loaded within. <br />	You can listen for events on this Job object or get reference to the things loaded. </li></ul></div></div></div></div></div><div class="member" id="options"><h3>options</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>options</b> (
+
+
+
+
+</div><div class="code">name:String = null,
+type:String = "text",
+method:String = "get",
+job:<a class="className" href="framework_net_Job.html">Job</a> = null,
+onComplete:Function = null) : Object</div><br class="clear" /></div></div><div class="description">     This is a helper function for anyone that likes code completion while defining options for calling the add method.<br />You dont need to use this but it makes things a little simpler unless you want to define just one paramiter.  </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name      <span class="itemSeparator">:</span></div><div>The name that you can reference your asset from within the cache.</div></div><div class="item"><div class="floatbox code colorizedCode">type      <span class="itemSeparator">:</span></div><div>The type of file that we need to load, either; text, graphic or swf</div></div><div class="item"><div class="floatbox code colorizedCode">method    <span class="itemSeparator">:</span></div><div>The HTTP method that you would like to use, GET or POST</div></div><div class="item"><div class="floatbox code colorizedCode">job       <span class="itemSeparator">:</span></div><div>If you would like to push this Asset into a job that is still loading</div></div><div class="item"><div class="floatbox code colorizedCode">onComplete<span class="itemSeparator">:</span></div><div>To automaticly call a method when the asset is loaded you can define a call back here </div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns a simple object with these paramiters inside of it. </li></ul></div></div></div></div></div></div><div class="footer"><ul class="docFooter"></ul></div></div></div></body></html>

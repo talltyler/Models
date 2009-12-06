@@ -1,0 +1,473 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>ModelBase</title><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><link rel="stylesheet" type="text/css" href="../css/VisDoc.css" /><script src="../js/jquery.js" type="text/javascript">//</script><script src="../js/common.js" type="text/javascript">//</script><script src="../js/doc.js" type="text/javascript">//</script></head><body id="page_framework_model_ModelBase"><script type="text/javascript">VisDoc.initBody();</script><div id="PageTop"><!----></div><div class="VisDoc"><div class="content"><div class="docNav"><ul><li><div id="twistyTOC_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenNotFramed"><a href="#"><span class="icon">+</span>Show TOC</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_show");</script><div id="twistyTOC_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenFramed"><a href="#"><span class="icon">&times;</span>Hide TOC</a></div><span id="twistyTOC_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_hide");</script></li></ul><ul class="accessKeyLinks"><li><a href="#PageTop" accesskey="t"><span class="accessKey">T</span>op</a></li><li><a href="#Summary" accesskey="s"><span class="accessKey">S</span>ummary</a></li><li><a href="#Constructor" accesskey="c"><span class="accessKey">C</span>onstructors</a></li><li><a href="#Classproperties" accesskey="l">C<span class="accessKey">l</span>ass properties</a></li><li><a href="#Instanceproperties" accesskey="l">Instance <span class="accessKey">p</span>roperties</a></li><li><a href="#Classmethods" accesskey="a">Cl<span class="accessKey">a</span>ss methods</a></li><li><a href="#Instancemethods" accesskey="m">Instance <span class="accessKey">m</span>ethods</a></li><li><a href="#Eventhandlers" accesskey="e"><span class="accessKey">E</span>vent handlers</a></li></ul><br class="clear" /></div><h1>ModelBase</h1><div class="classProperties"><table cellspacing="0"><tr><th align="left">Kind of class:</th><td>public dynamic class</td></tr><tr><th align="left">Package:</th><td><a class="className" href="package-framework_model.html">framework.model</a></td></tr><tr><th align="left">Inherits from:</th><td>Proxy</td></tr><tr><th align="left">Implements:</th><td><ul><li>IEventDispatcher</li></ul></td></tr><tr><th align="left">Known subclasses:</th><td><ul><li><a class="className" href="com_company_project_model_Character.html">Character</a></li><li><a class="className" href="com_company_project_model_User.html">User</a></li></ul></td></tr><tr><th class="classDetails" align="left">Classpath:</th><td class="classDetails">framework.model.ModelBase</td></tr><tr><th class="classDetails" align="left">File last modified:</th><td class="classDetails">Friday, 04 December 2009, 20:24:51</td></tr></table></div><div id="sourceCodeTop" class="sourceCodeView"><div id="twistyViewSourceshow" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">►&nbsp;</span><span class="linkLabel">View source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourceshow");</script><div id="twistyViewSourcehide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">▼&nbsp;</span><span class="linkLabel">Hide source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcehide");</script><div id="twistyViewSourcetoggle" class="twistyContent twistyMakeHidden twistyRememberSetting"><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcetoggle");</script><div class="sourceCode"><textarea rows="10" cols="10" id="source" readonly="readonly">package framework.model 
+{
+    import flash.events.*;
+    import flash.utils.*;
+    
+    import framework.cache.*;
+    import framework.events.*;
+    import framework.model.adapters.*;
+    import framework.utils.*;
+    
+    dynamic public class ModelBase extends Proxy implements IEventDispatcher
+    {     
+        public static const DESTROYED:String = "destroyed";
+        public static var models:Models;
+        
+        public var className:String;        
+        public var errors:Array = [];
+
+        private var _adapter:AdapterBase;
+        private var _data:Object = {};
+        private var _dispatcher:EventDispatcher;
+        private var _cache:Cache;
+        private var _listenerManager:ListenerManager;
+        private var _beforeFilters:Object = {};
+        private var _afterFilters:Object = {};
+        
+        /**
+         *    @constructor
+         *    @param    name     The name of the model object, this is normally the name of the class
+         */
+        public function ModelBase( params:Object=null )
+        {    
+            super();
+            className = StringUtils.className( this );
+            _cache = models.cache;
+            _dispatcher = new EventDispatcher();
+            _listenerManager = new ListenerManager( _dispatcher );
+            if( params != null ) {
+                create( params );
+            }
+        }
+        
+        /**
+         *    Setter for the models data conversion class, an adapter allows different data formats to interface commonly
+         *    @param    value     A adapter Class
+         */
+        public function setAdapter(value:Class):void
+        {
+            _adapter = new value( this, _cache||new Cache(), models );
+            _adapter.addEventListener( Event.COMPLETE, onLoad );
+        }
+        
+        /**
+         *    Getter for the models data conversion class, an adapter allows different data formats to interface commonly
+         *    @return        Returns an instance of the models adapter 
+         */
+        public function getAdapter():AdapterBase
+        { 
+            return _adapter; 
+        }
+        
+        /**
+         *    Export data within this objects instance as a 
+         *    @return        Returns String formated relative to the models adapter
+         */
+        public function export():String
+        {
+            return _adapter.export( this["id"] );
+        }
+        
+        /**
+         *    Destroy this object, clear any listener added to it and take it out of the cache
+         *    When finished it will dispatch a ModelBase.DESTROYED event
+         */
+        public function destroy( event:Event=null ):void 
+        {
+            _listenerManager.destroy();
+            models.destroy( className, this );
+            _dispatcher.dispatchEvent( new Event( DESTROYED ) );
+        }
+        
+        /**
+         *    Add a before filter to a column, these methods will be called in order before the change 
+         *    of the value of this column is made. These methods have a specific signature, 
+         *    see framework.utils.Validate for examples on how this works.
+         *    @param    column     Name of the column as a String
+         *    @param    method     The Function object that will be used to process this changed value
+         *    @param    params     A Object filled with any items that might need to be used for processing
+         */
+        public function beforeFilter( column:String, method:Function, params:Object=null ):void
+        {
+            if( !_beforeFilters.hasOwnProperty(column) ){
+                _beforeFilters[column] = [];
+            }
+            _beforeFilters[column].push({ method:method, params:params });
+        }
+        
+        /**
+         *    Add a after filter to a column, these methods will be called in order after the change 
+         *    of the value of this column is made. These methods have a specific signature, 
+         *    see framework.utils.Validate for examples on how this works.
+         *    @param    column     Name of the column as a String
+         *    @param    method     The Function object that will be used to process this changed value
+         *    @param    params     A Object filled with any items that might need to be used for processing
+         */
+        public function afterFilter( column:String, method:Function, params:Object=null ):void
+        {
+            if( !_afterFilters.hasOwnProperty(column) ){
+                _afterFilters[column] = [];
+            }
+            _afterFilters[column].push({ method:method, params:params });
+        }
+        
+        //---------------------------------------
+        //    EventDispature methods
+        //---------------------------------------
+        /**
+         *    @see    flash.events.EventDispatcher|#addEventListener Same as EventDispatcher
+         */
+        public function addEventListener(type:String, listener:Function, useCapture:Boolean=false, priority:int=0, useWeakReference:Boolean=false):void
+        {
+            _dispatcher.addEventListener(type, listener, useCapture, priority, useWeakReference);
+            _listenerManager.addEventListener(type, listener, useCapture, priority, useWeakReference);
+        }
+        
+        /**
+         *    @see    flash.events.EventDispatcher|#removeEventListener Same as EventDispatcher
+         */
+        public function removeEventListener(type:String, listener:Function, useCapture:Boolean=false):void
+        {
+            _dispatcher.removeEventListener(type, listener, useCapture);
+            _listenerManager.removeEventListener(type, listener, useCapture);
+        }
+        
+        /**
+         *    @see    flash.events.EventDispatcher|#dispatchEvent Same as EventDispatcher
+         */
+        public function dispatchEvent(event:Event):Boolean
+        {
+            return _dispatcher.dispatchEvent(event);
+        }
+        
+        /**
+         *    @see    flash.events.EventDispatcher|#hasEventListener Same as EventDispatcher
+         */
+        public function hasEventListener(type:String):Boolean
+        {
+            return _dispatcher.hasEventListener(type);
+        }
+        
+        /**
+         *    @see    flash.events.EventDispatcher|#willTrigger Same as EventDispatcher
+         */
+        public function willTrigger(type:String):Boolean
+        {
+            return _dispatcher.willTrigger(type);
+        }
+        
+        /**
+         *    @private 
+         *      TODO: impliment save to external source
+         */
+        public function save():void
+        {    
+            if( errors.length == 0 ){}
+        }
+        
+        /**
+         *    Used to setup scope to Models, this makes a lot of the magic posible
+         *    @private
+         */
+        public static function init( models:Models ):void
+        {
+            ModelBase.models = models;
+        }
+        
+        //---------------------------------------
+        // MODEL ASSOCIATIONS
+        //---------------------------------------
+        /**
+         *    This method gives you the ability to say that the model that you are working with 
+         *    belongs to another model. This relationship is facilitated with the use of id columns.
+         *    The foreign key should be on the model with the belongsTo association defined.
+         *    If you would like a better understanding of these associations try looking here
+         *    http://guides.rubyonrails.org/association_basics.html
+         */
+        protected function belongsTo( clazz:Class ) : void
+        {
+            var name:String = ( StringUtils.className( clazz ) + "_id" as String).toLowerCase();
+            addAssociation( name, "belongsTo", clazz );
+        }
+        
+        /**
+         *    This method gives you the ability to say that the model that you are working is  
+         *    associated with many models of another type. This relationship is facilitated with 
+         *    the use of foreign key columns placed on the associated model.
+         *    If you would like a better understanding of these associations try looking here
+         *    http://guides.rubyonrails.org/association_basics.html
+         */
+        protected function hasMany( clazz:Class ) : void
+        {
+            var name:String = StringUtils.pluralize( StringUtils.className( clazz ) ).toLowerCase();
+            addAssociation( name, "hasMany", clazz );
+        }
+        
+        /**
+         *    This method gives you the ability to say that the model that you are working is  
+         *    associated with one model of another type. This relationship is facilitated with 
+         *    the use of foreign key columns placed on the associated model.
+         *    If you would like a better understanding of these associations try looking here
+         *    http://guides.rubyonrails.org/association_basics.html
+         */
+        protected function hasOne( clazz:Class ) : void
+        {
+            var name:String = StringUtils.singularize( StringUtils.className( clazz ) ).toLowerCase();
+            addAssociation( name, "hasOne", clazz );
+        }
+        
+        /* // We dont have scope to whatever this join table would be so I dont think this is possible, 
+            // will have to find a different way
+        protected function hasManyAndBelongsTo( clazz:Class ) : void
+        {
+            var name:String = StringUtils.singularize( StringUtils.className( clazz ) ).toLowerCase();
+            addAssociation( name, "hasManyAndBelongsTo", clazz );
+        }
+        */
+        
+        // TODO: hasMany through relationships
+        
+        /**
+         *    @private
+         *    If params are sent into the constructor of this object create it and pass the instance to models
+         */
+        private function create( params:Object ):void
+        {
+            var result:* = this;
+            var index:int = models.push( className, result );
+
+            for(var prop:String in params ){
+                if( params[prop] is Array ) {
+                    var associatedObjects:Array = [];
+                    if( models.isAssociatedProperty( className, prop ) ) {
+                        for each(var item:Object in params[prop]){
+                            item[ className.toLowerCase() + "_id" ] = index;
+                            if( item is ModelBase ) {
+                                associatedObjects.push( item );
+                            }else{
+                                associatedObjects.push( models.getAssociationForProperty( className, prop ).create( item ) );
+                            }
+                        }
+                        result[prop] = associatedObjects;
+                    }else{
+                        trace( className, "is not associated with", prop );
+                    }
+                }else{
+                    if( params[prop] is ModelBase ) {
+                        if( models.columns[ className ].indexOf( prop + "_id" ) != -1 ) {
+                            result[prop] = params[prop];
+                            result[prop + "_id"] = params[prop].id;
+                            result[prop][className.toLowerCase()] = result;
+                            result[prop][className.toLowerCase() + "_id"] = index;
+                        }else{
+                            trace( className, "is not associated with", prop );
+                        }
+                    }else if( typeof( params[prop] ) == "object" ){
+                        result[prop] = models.getModel(prop)[create]( params[prop] );
+                    }else{
+                        result[prop] = params[prop];
+                    }
+                }
+            }
+            result.id = index;
+        }
+        
+        /**
+         *    @private
+         *    After an adapter as loaded it's data it will dispatch an event that calls this method, 
+         *    this event is passed on and dispatched from this model
+         */
+        private function onLoad(event:Event):void
+        {
+            dispatchEvent( event );
+        }
+        
+        /**
+         *    @private
+         *    This is just a method to simplify the creation of the other associations above,
+         *    belongsTo, hasOne, and hasMany all call this method
+         */
+        private function addAssociation( name:String, type:String, clazz:Class ) : void
+        {
+            var columns:Array = models.columns( className );
+            if( columns.indexOf( name ) == -1 ) {
+                columns.push( name );
+            }
+            models.addAssociation( className, type, name, clazz )
+        }
+        
+        /**
+         *    @private
+         *    Any method that isn't defined on the model will be sent here.
+         */
+        private function methodMissing( method:*, args:Array ) : Object
+        {
+            if( method.substring(0,6) == "findBy" ){
+                return models.findBy( className, method.split("findBy")[1], args );
+            }
+            trace("methodMissing", method, args)
+            return null;
+        }
+        
+        /**
+         *    @private
+         *    After a setProperty is finished it calls this method to set the property and call the after filters 
+         */
+        private function setPropertyComplete( name:String, value:*, result:Object, errors:Array):void
+        {
+            if( errors.length == 0 ) {
+                if( flash_proxy::isAttribute(name) ){
+                    this[name] = value;
+                }else{
+                    _data[name] = value;
+                }
+                if( _afterFilters.hasOwnProperty(name) ){
+                    for each( var filter:Object in _afterFilters[name] ){
+                        filter.method( this, name, value, filter.params );
+                    }
+                }
+            }else{
+                this.errors.apply(null,errors); // apply the errors to the models errors array
+                _dispatcher.dispatchEvent( new ValidationEvent( ValidationEvent.ERROR, errors ) );
+            }
+        }
+        
+        /**
+         *    @private
+         */
+        private function onFilterFinished( event:ValidationEvent ):void 
+        {
+            setPropertyComplete( event.message.name, event.message.value, event.message.result, event.message.errors);
+        }
+        
+        //---------------------------------------
+        // flash_proxy methods
+        //---------------------------------------
+        /**
+         *    Call before filters set property and then call after filters
+         *    @inheritDoc
+         *    
+         */
+        override flash_proxy function setProperty(name:*, value:*):void 
+        {    
+            var errors:Array = [];
+            var filter:Object;
+            var result:Object;
+            var hasDispatcher:Boolean;
+            if( _beforeFilters.hasOwnProperty(name) ){
+                for each( filter in _beforeFilters[name] ){
+                    result = filter.method( this, name, value, filter.params );
+                    if( result != null ){
+                        if( result.dispatcher != null ) {
+                            result.dispatcher.addEventListener( Event.COMPLETE, onFilterFinished );
+                            hasDispatcher = true;
+                        }else{
+                            if( result.errors != null ) {
+                                errors.push(result.errors);
+                            }
+                            if( result.value != null ) {
+                                value = result.value;
+                            }
+                        }
+                    }
+                }
+                if( !hasDispatcher ) {
+                    setPropertyComplete( name, value, result, errors);
+                }
+            }else{
+                setPropertyComplete( name, value, result, errors);
+            }
+        }
+        
+        /**
+         *    @inheritDoc
+         */
+        override flash_proxy function getProperty(name:*):* 
+        {    
+            if( flash_proxy::isAttribute(name) ){
+                return this[name];
+            }else if( _data.hasOwnProperty(name) ){ //trace("getProperty", name)
+                return _data[name];
+            }
+            trace( name, "could not be found on", this );
+            return null;
+        }
+        
+        /**
+         *    @inheritDoc
+         */
+        override flash_proxy function hasProperty(name:*):Boolean 
+        {
+            return _data.hasOwnProperty(name); //trace("hasProperty", name);
+        }
+        
+        /**
+         *    @inheritDoc
+         */
+        override flash_proxy function deleteProperty(name:*):Boolean 
+        {
+            return delete _data[name]; //trace("deleteProperty", name, flash_proxy::isAttribute(name) );
+        }    
+        
+        /**
+         *    @inheritDoc
+         */
+        override flash_proxy function callProperty(method:*, ...args) : * 
+        {
+            try {          
+                var clazz : Class = getDefinitionByName(getQualifiedClassName(this)) as Class;
+                return clazz.prototype[method].apply(method, args);
+               }catch (e : Error) {
+                return methodMissing(method, args);
+               }
+        }
+    }
+}
+</textarea></div></div></div><div class="classDescription"></div><div class="summary"><h2 id="Summary">Summary</h2><div class="docNav"><ul><li><div id="twistyTypeInfo_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide type info</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_on");</script><div id="twistyTypeInfo_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show type info</a></div><span id="twistyTypeInfo_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_off");</script></li><li><div id="twistySummaries_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide summaries</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSummaries_on");</script><div id="twistySummaries_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show summaries</a></div><span id="twistySummaries_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSummaries_off");</script></li><li><div id="twistySort_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Sort by source order</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_on");</script><div id="twistySort_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Sort alphabetically</a></div><span id="twistySort_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_off");</script></li></ul><br class="clear" /></div><div class="memberList"><div class="memberSummaryPart"><span class="title">Constructor</span><ul class="sortable" id="sortul1"><li class="sortli listnum1"><a href="#ModelBase">ModelBase</a><span class="typeInfo"> (params:Object = null)</span></li></ul></div><div class="memberSummaryPart"><span class="title">Constants</span><ul class="sortable" id="sortul2"><li class="sortli listnum1"><a href="#DESTROYED">DESTROYED</a><span class="typeInfo">  : String</span></li></ul></div><div class="memberSummaryPart"><span class="title">Class properties</span><ul class="sortable" id="sortul3"><li class="sortli listnum1"><a href="#models">models</a><span class="typeInfo">  : <a class="className" href="framework_model_Models.html">Models</a></span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance properties</span><ul class="sortable" id="sortul4"><li class="sortli listnum1"><a href="#className">className</a><span class="typeInfo">  : String</span></li><li class="sortli listnum2"><a href="#errors">errors</a><span class="typeInfo">  : Array</span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance methods</span><ul class="sortable" id="sortul5"><li class="sortli listnum1"><a href="#setAdapter">setAdapter</a><span class="typeInfo"> (value:Class) : void</span><ul class="summary"><li>    Setter for the models data conversion class, an adapter allows different data formats to interface commonly</li></ul></li><li class="sortli listnum2"><a href="#getAdapter">getAdapter</a><span class="typeInfo">  : <a class="className" href="framework_model_adapters_AdapterBase.html">AdapterBase</a></span><ul class="summary"><li>    Getter for the models data conversion class, an adapter allows different data formats to interface commonly</li></ul></li><li class="sortli listnum3"><a href="#export">export</a><span class="typeInfo">  : String</span><ul class="summary"><li>    Export data within this objects instance as a </li></ul></li><li class="sortli listnum4"><a href="#destroy">destroy</a><span class="typeInfo"> (event:Event = null) : void</span><ul class="summary"><li>    Destroy this object, clear any listener added to it and take it out of the cache</li></ul></li><li class="sortli listnum5"><a href="#beforeFilter">beforeFilter</a><span class="typeInfo"> (column:String, method:Function, params:Object = null) : void</span><ul class="summary"><li>    Add a before filter to a column, these methods will be called in order before the change </li></ul></li><li class="sortli listnum6"><a href="#afterFilter">afterFilter</a><span class="typeInfo"> (column:String, method:Function, params:Object = null) : void</span><ul class="summary"><li>    Add a after filter to a column, these methods will be called in order after the change </li></ul></li><li class="sortli listnum7"><a href="#addEventListener">addEventListener</a><span class="typeInfo"> (type:String, listener:Function, useCapture:Boolean = false, priority:int = 0, useWeakReference:Boolean = false) : void</span></li><li class="sortli listnum8"><a href="#removeEventListener">removeEventListener</a><span class="typeInfo"> (type:String, listener:Function, useCapture:Boolean = false) : void</span></li><li class="sortli listnum9"><a href="#dispatchEvent">dispatchEvent</a><span class="typeInfo"> (event:Event) : Boolean</span></li><li class="sortli listnum10"><a href="#hasEventListener">hasEventListener</a><span class="typeInfo"> (type:String) : Boolean</span></li><li class="sortli listnum11"><a href="#willTrigger">willTrigger</a><span class="typeInfo"> (type:String) : Boolean</span></li><li class="sortli listnum12"><a href="#setProperty">setProperty</a><span class="typeInfo"> (name:*, value:*) : void</span><ul class="summary"><li>    Call before filters set property and then call after filters</li></ul></li><li class="sortli listnum13"><a href="#getProperty">getProperty</a><span class="typeInfo"> (name:*) : *</span></li><li class="sortli listnum14"><a href="#hasProperty">hasProperty</a><span class="typeInfo"> (name:*) : Boolean</span></li><li class="sortli listnum15"><a href="#deleteProperty">deleteProperty</a><span class="typeInfo"> (name:*) : Boolean</span></li><li class="sortli listnum16"><a href="#callProperty">callProperty</a><span class="typeInfo"> (method:*, args) : *</span></li></ul></div></div></div><div class="memberSection"><h2 id="Constructor">Constructor</h2><div class="member" id="ModelBase"><h3>ModelBase</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>ModelBase</b> (
+</div><div class="code">params:Object = null)</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The name of the model object, this is normally the name of the class</div></div></div></div></div></div></div><div class="memberSection"><h2 id="Constants">Constants</h2><div class="member" id="DESTROYED"><h3>DESTROYED</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static const</span> <b>DESTROYED</b>:String = <span class="codeString">"destroyed"</span>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div></div></div><div class="memberSection"><h2 id="Classproperties">Class properties</h2><div class="member" id="models"><h3>models</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public static</span> <b>models</b>:<a class="className" href="framework_model_Models.html">Models</a>
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div></div><div class="memberSection"><h2 id="Instanceproperties">Instance properties</h2><div class="member" id="className"><h3>className</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>className</b>:String
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="errors"><h3>errors</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>errors</b>:Array = []
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div></div><div class="memberSection"><h2 id="Instancemethods">Instance methods</h2><div class="member" id="addEventListener"><h3>addEventListener</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>addEventListener</b> (
+
+
+
+
+</div><div class="code">type:String,
+listener:Function,
+useCapture:Boolean = false,
+priority:int = 0,
+useWeakReference:Boolean = false) : void</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">See also:</span><div class="item"><ul><li> <span class="doesNotExist"> |#addEventListener Same as EventDispatcher</span> </li></ul></div></div></div></div></div><div class="member" id="afterFilter"><h3>afterFilter</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>afterFilter</b> (
+
+
+</div><div class="code">column:String,
+method:Function,
+params:Object = null) : void</div><br class="clear" /></div></div><div class="description">     Add a after filter to a column, these methods will be called in order after the change <br />of the value of this column is made. These methods have a specific signature, <br />see framework.utils.Validate for examples on how this works. </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">column<span class="itemSeparator">:</span></div><div>Name of the column as a String</div></div><div class="item"><div class="floatbox code colorizedCode">method<span class="itemSeparator">:</span></div><div>The Function object that will be used to process this changed value</div></div><div class="item"><div class="floatbox code colorizedCode">params<span class="itemSeparator">:</span></div><div>A Object filled with any items that might need to be used for processing</div></div></div></div></div></div><div class="member" id="beforeFilter"><h3>beforeFilter</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>beforeFilter</b> (
+
+
+</div><div class="code">column:String,
+method:Function,
+params:Object = null) : void</div><br class="clear" /></div></div><div class="description">     Add a before filter to a column, these methods will be called in order before the change <br />of the value of this column is made. These methods have a specific signature, <br />see framework.utils.Validate for examples on how this works. </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">column<span class="itemSeparator">:</span></div><div>Name of the column as a String</div></div><div class="item"><div class="floatbox code colorizedCode">method<span class="itemSeparator">:</span></div><div>The Function object that will be used to process this changed value</div></div><div class="item"><div class="floatbox code colorizedCode">params<span class="itemSeparator">:</span></div><div>A Object filled with any items that might need to be used for processing</div></div></div></div></div></div><div class="member" id="callProperty"><h3>callProperty</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">override flash_proxy public</span> function <b>callProperty</b> (
+
+</div><div class="code">method:*,
+args) : *</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Overrides:</span><div class="item"><ul><li> <span class="doesNotExist"> Proxy.callProperty</span> </li></ul></div></div></div></div></div><div class="member" id="deleteProperty"><h3>deleteProperty</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">override flash_proxy public</span> function <b>deleteProperty</b> (
+</div><div class="code">name:*) : Boolean</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Overrides:</span><div class="item"><ul><li> <span class="doesNotExist"> Proxy.deleteProperty</span> </li></ul></div></div></div></div></div><div class="member" id="destroy"><h3>destroy</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>destroy</b> (
+</div><div class="code">event:Event = null) : void</div><br class="clear" /></div></div><div class="description">     Destroy this object, clear any listener added to it and take it out of the cache<br />When finished it will dispatch a ModelBase.DESTROYED event </div></div><div class="member" id="dispatchEvent"><h3>dispatchEvent</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>dispatchEvent</b> (
+</div><div class="code">event:Event) : Boolean</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">See also:</span><div class="item"><ul><li> <span class="doesNotExist"> |#dispatchEvent Same as EventDispatcher</span> </li></ul></div></div></div></div></div><div class="member" id="export"><h3>export</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>export</b> (
+</div><div class="code">) : String</div><br class="clear" /></div></div><div class="description">     Export data within this objects instance as a  </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns String formated relative to the models adapter </li></ul></div></div></div></div></div><div class="member" id="getAdapter"><h3>getAdapter</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>getAdapter</b> (
+</div><div class="code">) : <a class="className" href="framework_model_adapters_AdapterBase.html">AdapterBase</a></div><br class="clear" /></div></div><div class="description">     Getter for the models data conversion class, an adapter allows different data formats to interface commonly </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns an instance of the models adapter </li></ul></div></div></div></div></div><div class="member" id="getProperty"><h3>getProperty</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">override flash_proxy public</span> function <b>getProperty</b> (
+</div><div class="code">name:*) : *</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Overrides:</span><div class="item"><ul><li> <span class="doesNotExist"> Proxy.getProperty</span> </li></ul></div></div></div></div></div><div class="member" id="hasEventListener"><h3>hasEventListener</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>hasEventListener</b> (
+</div><div class="code">type:String) : Boolean</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">See also:</span><div class="item"><ul><li> <span class="doesNotExist"> |#hasEventListener Same as EventDispatcher</span> </li></ul></div></div></div></div></div><div class="member" id="hasProperty"><h3>hasProperty</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">override flash_proxy public</span> function <b>hasProperty</b> (
+</div><div class="code">name:*) : Boolean</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Overrides:</span><div class="item"><ul><li> <span class="doesNotExist"> Proxy.hasProperty</span> </li></ul></div></div></div></div></div><div class="member" id="removeEventListener"><h3>removeEventListener</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>removeEventListener</b> (
+
+
+</div><div class="code">type:String,
+listener:Function,
+useCapture:Boolean = false) : void</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">See also:</span><div class="item"><ul><li> <span class="doesNotExist"> |#removeEventListener Same as EventDispatcher</span> </li></ul></div></div></div></div></div><div class="member" id="setAdapter"><h3>setAdapter</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>setAdapter</b> (
+</div><div class="code">value:Class) : void</div><br class="clear" /></div></div><div class="description">     Setter for the models data conversion class, an adapter allows different data formats to interface commonly </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">value<span class="itemSeparator">:</span></div><div>A adapter Class</div></div></div></div></div></div><div class="member" id="setProperty"><h3>setProperty</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">override flash_proxy public</span> function <b>setProperty</b> (
+
+</div><div class="code">name:*,
+value:*) : void</div><br class="clear" /></div></div><div class="description">     Call before filters set property and then call after filters </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Overrides:</span><div class="item"><ul><li> <span class="doesNotExist"> Proxy.setProperty</span> </li></ul></div></div></div></div></div><div class="member" id="willTrigger"><h3>willTrigger</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>willTrigger</b> (
+</div><div class="code">type:String) : Boolean</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">See also:</span><div class="item"><ul><li> <span class="doesNotExist"> |#willTrigger Same as EventDispatcher</span> </li></ul></div></div></div></div></div></div><div class="footer"><ul class="docFooter"></ul></div></div></div></body></html>

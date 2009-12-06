@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>EventInfo</title><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><link rel="stylesheet" type="text/css" href="../css/VisDoc.css" /><script src="../js/jquery.js" type="text/javascript">//</script><script src="../js/common.js" type="text/javascript">//</script><script src="../js/doc.js" type="text/javascript">//</script></head><body id="page_framework_events_EventInfo"><script type="text/javascript">VisDoc.initBody();</script><div id="PageTop"><!----></div><div class="VisDoc"><div class="content"><div class="docNav"><ul><li><div id="twistyTOC_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenNotFramed"><a href="#"><span class="icon">+</span>Show TOC</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_show");</script><div id="twistyTOC_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenFramed"><a href="#"><span class="icon">&times;</span>Hide TOC</a></div><span id="twistyTOC_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_hide");</script></li></ul><ul class="accessKeyLinks"><li><a href="#PageTop" accesskey="t"><span class="accessKey">T</span>op</a></li><li><a href="#Summary" accesskey="s"><span class="accessKey">S</span>ummary</a></li><li><a href="#Constructor" accesskey="c"><span class="accessKey">C</span>onstructors</a></li><li><a href="#Instanceproperties" accesskey="l">Instance <span class="accessKey">p</span>roperties</a></li><li><a href="#Instancemethods" accesskey="m">Instance <span class="accessKey">m</span>ethods</a></li></ul><br class="clear" /></div><h1>EventInfo</h1><div class="classProperties"><table cellspacing="0"><tr><th align="left">Kind of class:</th><td>internal class</td></tr><tr><th align="left">Package:</th><td><a class="className" href="package-framework_events.html">framework.events</a></td></tr><tr><th align="left">Inherits from:</th><td>none</td></tr><tr><th class="classDetails" align="left">Classpath:</th><td class="classDetails">framework.events.EventInfo</td></tr><tr><th class="classDetails" align="left">File last modified:</th><td class="classDetails">Monday, 23 November 2009, 16:23:24</td></tr></table></div><div id="sourceCodeTop" class="sourceCodeView"><div id="twistyViewSourceshow" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">►&nbsp;</span><span class="linkLabel">View source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourceshow");</script><div id="twistyViewSourcehide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">▼&nbsp;</span><span class="linkLabel">Hide source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcehide");</script><div id="twistyViewSourcetoggle" class="twistyContent twistyMakeHidden twistyRememberSetting"><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcetoggle");</script><div class="sourceCode"><textarea rows="10" cols="10" id="source" readonly="readonly">package framework.events  
+{    
+    import flash.events.*;
+    
+    public class ListenerManager
+    {
+        protected var _events:Array;
+        protected var _eventDispatcher:EventDispatcher;
+        protected var _blockRequest:Boolean;
+        
+        public function ListenerManager(dispatcher:EventDispatcher) 
+        {
+            super();
+            _eventDispatcher = dispatcher;
+            _events = new Array();
+        }
+        
+        public function addEventListener(type:String, listener:Function, useCapture:Boolean = false, priority:int = 0, useWeakReference:Boolean = false):void 
+        {
+            var info:EventInfo = new EventInfo(type, listener, useCapture);
+            
+            var l:int = _events.length;
+            while (l--)
+                if (_events[l].equals(info))
+                    return;
+            
+            _events.push(info);
+        }
+        
+        public function removeEventListener(type:String, listener:Function, useCapture:Boolean = false):void 
+        {
+            if (this._blockRequest)
+                return;
+            
+            var info:EventInfo = new EventInfo(type, listener, useCapture);
+            
+            var l:int = _events.length;
+            while (l--)
+                if (_events[l].equals(info))
+                    _events.splice(l,1);
+        }
+        /*
+        public function removeEventsForType(type:String):void 
+        {
+            this._blockRequest = true;
+            
+            var l:int = this._events.length;
+            var eventInfo:EventInfo;
+            while (l--) {
+                eventInfo = this._events[l];
+                
+                if (eventInfo.type == type) {
+                    this._events.splice(l, 1);
+                    
+                    this._eventDispatcher.removeEventListener(eventInfo.type, eventInfo.listener, eventInfo.useCapture);
+                }
+            }
+            
+            this._blockRequest = false;
+        }
+        
+        public function removeEventsForListener(listener:Function):void 
+        {
+            this._blockRequest = true;
+            
+            var l:int = this._events.length;
+            var eventInfo:EventInfo;
+            while (l--) {
+                eventInfo = this._events[l];
+                
+                if (eventInfo.listener == listener) {
+                    this._events.splice(l, 1);
+                    
+                    this._eventDispatcher.removeEventListener(eventInfo.type, eventInfo.listener, eventInfo.useCapture);
+                }
+            }
+            
+            this._blockRequest = false;
+        }
+        */
+        public function removeEventListeners():void 
+        {
+            _blockRequest = true;
+            
+            var l:int = _events.length;
+            var eventInfo:EventInfo;
+            while (l--) {
+                eventInfo = _events.splice(l,1)[0];
+                _eventDispatcher.removeEventListener(eventInfo.type, eventInfo.listener, eventInfo.useCapture);
+            }
+            
+            _blockRequest = false;
+        }
+        
+        public function destroy():void 
+        {
+            removeEventListeners();
+        }
+    }
+}
+
+class EventInfo 
+{
+    public var type:String;
+    public var listener:Function;
+    public var useCapture:Boolean;
+
+    public function EventInfo(type:String, listener:Function, useCapture:Boolean) 
+    {
+        super();
+        
+        this.type       = type;
+        this.listener   = listener;
+        this.useCapture = useCapture;
+    }
+    
+    public function equals(eventInfo:EventInfo):Boolean 
+    {
+        return this.type == eventInfo.type &amp;&amp; this.listener == eventInfo.listener &amp;&amp; this.useCapture == eventInfo.useCapture;
+    }
+}
+</textarea></div></div></div><div class="classDescription"></div><div class="summary"><h2 id="Summary">Summary</h2><div class="docNav"><ul><li><div id="twistyTypeInfo_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide type info</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_on");</script><div id="twistyTypeInfo_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show type info</a></div><span id="twistyTypeInfo_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_off");</script></li><li><div id="twistySort_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Sort by source order</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_on");</script><div id="twistySort_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Sort alphabetically</a></div><span id="twistySort_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_off");</script></li></ul><br class="clear" /></div><div class="memberList"><div class="memberSummaryPart"><span class="title">Constructor</span><ul class="sortable" id="sortul1"><li class="sortli listnum1"><a href="#EventInfo">EventInfo</a><span class="typeInfo"> (type:String, listener:Function, useCapture:Boolean)</span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance properties</span><ul class="sortable" id="sortul2"><li class="sortli listnum1"><a href="#type">type</a><span class="typeInfo">  : String</span></li><li class="sortli listnum2"><a href="#listener">listener</a><span class="typeInfo">  : Function</span></li><li class="sortli listnum3"><a href="#useCapture">useCapture</a><span class="typeInfo">  : Boolean</span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance methods</span><ul class="sortable" id="sortul3"><li class="sortli listnum1"><a href="#equals">equals</a><span class="typeInfo"> (eventInfo:<a class="className" href="framework_events_EventInfo.html">EventInfo</a>) : Boolean</span></li></ul></div></div></div><div class="memberSection"><h2 id="Constructor">Constructor</h2><div class="member" id="EventInfo"><h3>EventInfo</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>EventInfo</b> (
+
+
+</div><div class="code">type:String,
+listener:Function,
+useCapture:Boolean)</div><br class="clear" /></div></div></div></div><div class="memberSection"><h2 id="Instanceproperties">Instance properties</h2><div class="member" id="listener"><h3>listener</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>listener</b>:Function
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="type"><h3>type</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>type</b>:String
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="useCapture"><h3>useCapture</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>useCapture</b>:Boolean
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div></div><div class="memberSection"><h2 id="Instancemethods">Instance methods</h2><div class="member" id="equals"><h3>equals</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>equals</b> (
+</div><div class="code">eventInfo:<a class="className" href="framework_events_EventInfo.html">EventInfo</a>) : Boolean</div><br class="clear" /></div></div></div></div><div class="footer"><ul class="docFooter"></ul></div></div></div></body></html>

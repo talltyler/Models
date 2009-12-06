@@ -1,0 +1,533 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>CSVAdapter</title><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><link rel="stylesheet" type="text/css" href="../css/VisDoc.css" /><script src="../js/jquery.js" type="text/javascript">//</script><script src="../js/common.js" type="text/javascript">//</script><script src="../js/doc.js" type="text/javascript">//</script></head><body id="page_framework_model_adapters_CSVAdapter"><script type="text/javascript">VisDoc.initBody();</script><div id="PageTop"><!----></div><div class="VisDoc"><div class="content"><div class="docNav"><ul><li><div id="twistyTOC_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenNotFramed"><a href="#"><span class="icon">+</span>Show TOC</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_show");</script><div id="twistyTOC_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenFramed"><a href="#"><span class="icon">&times;</span>Hide TOC</a></div><span id="twistyTOC_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_hide");</script></li></ul><ul class="accessKeyLinks"><li><a href="#PageTop" accesskey="t"><span class="accessKey">T</span>op</a></li><li><a href="#Summary" accesskey="s"><span class="accessKey">S</span>ummary</a></li><li><a href="#Constructor" accesskey="c"><span class="accessKey">C</span>onstructors</a></li><li><a href="#Instancemethods" accesskey="m">Instance <span class="accessKey">m</span>ethods</a></li><li><a href="#Eventhandlers" accesskey="e"><span class="accessKey">E</span>vent handlers</a></li></ul><br class="clear" /></div><h1>CSVAdapter</h1><div class="classProperties"><table cellspacing="0"><tr><th align="left">Kind of class:</th><td>public class</td></tr><tr><th align="left">Package:</th><td><a class="className" href="package-framework_model_adapters.html">framework.model.adapters</a></td></tr><tr><th align="left">Inherits from:</th><td><a class="className" href="framework_model_adapters_AdapterBase.html">AdapterBase</a> &lt; EventDispatcher</td></tr><tr><th class="classDetails" align="left">Classpath:</th><td class="classDetails">framework.model.adapters.CSVAdapter</td></tr><tr><th class="classDetails" align="left">File last modified:</th><td class="classDetails">Friday, 04 December 2009, 21:02:21</td></tr></table></div><div id="sourceCodeTop" class="sourceCodeView"><div id="twistyViewSourceshow" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">►&nbsp;</span><span class="linkLabel">View source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourceshow");</script><div id="twistyViewSourcehide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">▼&nbsp;</span><span class="linkLabel">Hide source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcehide");</script><div id="twistyViewSourcetoggle" class="twistyContent twistyMakeHidden twistyRememberSetting"><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcetoggle");</script><div class="sourceCode"><textarea rows="10" cols="10" id="source" readonly="readonly">package framework.model.adapters 
+{
+    import flash.events.*;
+    import flash.net.*;
+    import framework.cache.*;
+    import framework.model.*;
+    import framework.net.*;
+    import framework.utils.*;
+    
+    public class CSVAdapter extends AdapterBase
+    {
+        public function CSVAdapter( model:ModelBase, cache:Cache, models:Models )
+        {
+            super( model, cache, models );
+        }
+        
+        /**
+         *    @param    id     Optional id of the object that you want to export, if there is no id everything is exported
+         *    @return    Return String formated as a CSV of the data within model
+         */
+        override public function export( id:int=-1 ) : String
+        {
+            var csv : CSV = new CSV();
+            csv.embededHeader = false;
+            csv.recordsetDelimiter = "\n"
+            var column:String;
+            csv.header = models.columns( model.className );
+            var clazz:* = models.getModel( model.className );
+            var row:Array;
+            if( id == -1 ) {
+                for each( var item:* in clazz["all"]() ){
+                    row = [];
+                    for each( column in csv.header ){
+                        row.push( item[column].toString() ); 
+                    }
+                    csv.addRecordSet( row );
+                }
+            }else{
+                row = [];
+                for each( column in csv.header ){
+                    var value:* = clazz["findById"]( id )[ column ];
+                    if( !(value is Array) ) {
+                        row.push( value ); 
+                    }else{
+                        row.push( String(value.length) + " " + StringUtils.pluralize(value[0].className) ); 
+                    }
+                }
+                csv.addRecordSet( row );
+            }
+            csv.encode()
+            return csv.data;
+        }
+        
+        /**
+         *    @param    path     The url that this data is going to be loaded from
+         */
+        public function load( path:String ):void
+        {
+            assets.add( path ).addEventListener( Event.COMPLETE, onLoad );
+            assets.load();
+        }
+        
+        /**
+         *    @private
+         */
+        private function onLoad( event:Event ):void
+        {    
+            var csv:CSV = new CSV();
+            csv.data = event.target.data;
+            csv.decode();
+            var className:String = StringUtils.className( model );
+            var clazz:Class = models.getModel( className );
+            var columns:Array = [];
+            for each( var header:String in csv.header){
+                if( models.columns( className ).indexOf( header ) == -1 ){
+                    models.columns( className ).push( header );
+                    columns.push( header );
+                }
+            }
+            
+            for each( var row:Array in csv.data){
+
+                var instance:* = new clazz();
+                var index:int = models.push( className, instance );
+                
+                var count:int = 0;
+                for each( var cell:String in row ) {
+                    var column:String = columns[count];
+                    instance[column] = cell;
+                    if( models.isAssociatedProperty( className, column ) ){
+                        var associatedObject:* = models.getAssociationForProperty(className, column)["class"].findById( cell );
+                        if( associatedObject != null ){
+                            var name:String = StringUtils.pluralize( className ).toLowerCase();
+                            if( !associatedObject.hasOwnProperty( name ) ) {
+                                associatedObject[ name ] = [];
+                            }
+                            associatedObject[ name ].push( instance );
+                        }
+                    }
+                    count++
+                }
+                instance.id = index;
+            }
+            models.dispatchEvent(new Event( "modelLoaded" ) );
+        }
+    }
+}
+
+import flash.net.*
+import flash.events.*
+import framework.utils.*;
+
+/** 
+ *   @author Marco M√ºller / http://shorty-bmc.com
+ *   @see http://rfc.net/rfc4180.html RFC4180
+ *      @see http://csvlib.googlecode.com csvlib
+ *   @langversion ActionScript 3.0
+ *   @tiptext
+ */
+class CSV extends URLLoader
+{
+    
+    
+    private var FieldSeperator        : String
+    private var FieldEnclosureToken : String
+    private var RecordsetDelimiter    : String
+    
+    private var Header                 : Array
+    private var EmbededHeader         : Boolean
+    private var HeaderOverwrite     : Boolean
+    
+    private var SortField            : *
+    private var SortSequence        : String
+    
+    
+    
+    /**
+     *   TODO Constructor description ...
+     * 
+     *   @param request URLRequest
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function CSV( request : URLRequest = null )
+    {
+        super()
+        fieldSeperator         = ','
+        fieldEnclosureToken = '"'
+        recordsetDelimiter     = '\r'
+        
+        header = new Array()
+        embededHeader = true
+        headerOverwrite = false
+        
+        if( request )
+            load( request )
+        this.dataFormat = URLLoaderDataFormat.TEXT
+        addEventListener( Event.COMPLETE, decode )
+        
+    }
+    
+    
+    
+    // -> getter
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function get fieldSeperator() : String
+    {
+        return FieldSeperator
+    }
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function get fieldEnclosureToken() : String
+    {
+        return FieldEnclosureToken
+    }
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function get recordsetDelimiter() : String
+    {
+        return RecordsetDelimiter
+    }
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function get embededHeader() : Boolean
+    {
+        return EmbededHeader
+    }
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function get headerOverwrite()  : Boolean 
+    {
+        return HeaderOverwrite
+    }
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function get header() : Array 
+    {
+        return Header
+    }
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function get headerHasValues () : Boolean
+    {
+        var check : Boolean
+        try {
+            if ( Header.length > 0 ) check = true
+        } catch ( e : Error ) {
+            check = false
+        } finally {
+            return check
+        }
+    }
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function get dataHasValues () : Boolean
+    {
+        var check : Boolean
+        try {
+            if ( data.length > 0 ) check = true
+        } catch ( e : Error ) {
+            check = false
+        } finally {
+            return check
+        }
+    }
+    
+    
+    
+    // -> setter
+    
+    
+    
+    /**
+     *   TODO Setter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function set fieldSeperator( value : String ) : void
+    {
+        FieldSeperator = value
+    }
+    
+    
+    
+    /**
+     *   TODO Getter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function set fieldEnclosureToken( value : String ) : void
+    {
+        FieldEnclosureToken = value
+    }
+    
+    
+    
+    /**
+     *   TODO Setter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function set recordsetDelimiter( value : String ) : void
+    {
+        RecordsetDelimiter = value
+    }
+    
+    
+    
+    /**
+     *   TODO Setter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function set embededHeader( value : Boolean ) : void
+    {
+        EmbededHeader = value
+    }
+    
+    
+    /**
+     *   TODO Setter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function set headerOverwrite( value : Boolean ) : void
+    {
+        HeaderOverwrite = value
+    }
+    
+    /**
+     *   TODO Setter description ...
+     * 
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function set header( value : Array ) : void
+    {
+        if ( (!embededHeader &amp;&amp; !headerHasValues) ||
+             (!embededHeader &amp;&amp; headerHasValues &amp;&amp; headerOverwrite) || headerOverwrite )
+               Header = value
+    }
+    
+    // -> Public methods
+    
+    /**
+     *   TODO Public method description ...
+     * 
+     *   @param index int
+     *   @return Array
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function getRecordSet( index : int ) : Array
+    {
+        if ( dataHasValues )
+             return data[ index ]
+        else
+            return null
+    }
+    
+    
+    /**
+     *   TODO Public method description ...
+     * 
+     *   @param recordset Array
+     *   @param index *
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function addRecordSet( recordset : Array, index : * = null ) : void
+    {
+        if ( !dataHasValues )
+              data = new Array()
+        
+        if ( !index &amp;&amp; index != 0 )
+              data.push( recordset )
+        else
+              data.splice( index, 0, recordset )
+    }
+    
+    
+    
+    /**
+     *   TODO Public method description ...
+     * 
+     *   @param startIndex int
+     *   @param endIndex int
+     *   @return Boolean
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function deleteRecordSet ( startIndex : int, endIndex : int = 1 ) : Boolean
+    {
+        if ( dataHasValues &amp;&amp; startIndex &lt; data.length &amp;&amp; endIndex > 0 )
+             return data.splice( startIndex, endIndex )
+        else
+             return false
+    }
+    
+    
+    /**
+     *   TODO Public method description ...
+     * 
+     *   @param raw The sting to decode
+     *   @param event Never set this, its only for internal use
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function decode( event : Event = null ) : void
+    {
+        var count  : int = 0
+        var result : Array = new Array ()         
+        data = data.toString().split( recordsetDelimiter );
+        for(  var i : int = 0; i &lt; data.length; i++ )
+        {
+            if( !Boolean( count % 2 ) )
+                 result.push( data[ i ] )
+            else
+                 result[ result.length - 1 ] += data[ i ]
+            count += StringUtils.count( data[ i ] , fieldEnclosureToken )
+        }
+        result = result.filter( isNotEmptyRecord )
+        result.forEach( fieldDetection )
+        if ( ( embededHeader &amp;&amp; headerOverwrite ) || ( embededHeader &amp;&amp; headerHasValues ) )
+               result.shift()
+        else if ( embededHeader )
+                   Header = result.shift()
+        data = result
+    }
+    
+    
+    
+    /**
+     *   TODO Public method description ...
+     *   
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    public function encode () : void
+    {
+        var result : String = ''
+        if ( headerHasValues &amp;&amp; header.length > 0 )
+        {
+             embededHeader = true
+             data.unshift( header )
+        }
+        if ( dataHasValues )
+             for each ( var recordset : Array in data )
+                  result += recordset.join( fieldSeperator ) + recordsetDelimiter
+        data = result
+    }
+    
+    
+    
+    // -> private methods
+    
+    
+    
+    /**
+     *   TODO Private method description ...
+     * 
+     *   @param element *
+     *   @param index int
+     *   @param arr Array
+     *   @return Boolean true if recordset has values, false if not
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    private function fieldDetection( element : *, index : int, arr : Array ) : void
+    {    
+        var count  : uint  = 0;
+        var result : Array = new Array ();
+        var tmp    : Array = element.split( fieldSeperator );
+        for( var i : uint = 0; i &lt; tmp.length; i++ )
+        {
+            if( !Boolean( count % 2 ) )
+                 result.push( StringUtils.trim( tmp[ i ] ) );
+            else
+                 result[ result.length - 1 ] += fieldSeperator + tmp[ i ];
+            count += StringUtils.count( tmp[ i ] , fieldEnclosureToken );
+        }
+        arr[ index ] = result
+    }
+    
+    
+    
+    /**
+     *   TODO Private method description ...
+     * 
+     *   @param element *
+     *   @param index int
+     *   @param arr Array
+     *   @return Boolean true if recordset has values, false if not
+     *   @langversion ActionScript 3.0
+     *   @tiptext
+     */
+    private function isNotEmptyRecord( element : *, index : int, arr : Array ) : Boolean
+    {
+        return Boolean( StringUtils.trim( element ) );
+    }
+}
+</textarea></div></div></div><div class="classDescription"></div><div class="summary"><h2 id="Summary">Summary</h2><div class="docNav"><ul><li><div id="twistyTypeInfo_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide type info</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_on");</script><div id="twistyTypeInfo_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show type info</a></div><span id="twistyTypeInfo_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_off");</script></li><li><div id="twistySort_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Sort by source order</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_on");</script><div id="twistySort_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Sort alphabetically</a></div><span id="twistySort_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_off");</script></li></ul><br class="clear" /></div><div class="memberList"><div class="memberSummaryPart"><span class="title">Constructor</span><ul class="sortable" id="sortul1"><li class="sortli listnum1"><a href="#CSVAdapter">CSVAdapter</a><span class="typeInfo"> (model:<a class="className" href="framework_model_ModelBase.html">ModelBase</a>)</span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance methods</span><ul class="sortable" id="sortul2"><li class="sortli listnum1"><a href="#export">export</a><span class="typeInfo"> (id:int = -1) : String</span></li><li class="sortli listnum2"><a href="#load">load</a><span class="typeInfo"> (path:String) : void</span></li></ul><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Instance methods inherited from <span class="superclass"><a class="className" href="framework_model_adapters_AdapterBase.html">AdapterBase</a></span></span><div class="item inheritedList"><a href="framework_model_adapters_AdapterBase.html#export">export</a></div></div></div></div></div></div></div><div class="memberSection"><h2 id="Constructor">Constructor</h2><div class="member" id="CSVAdapter"><h3>CSVAdapter</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>CSVAdapter</b> (
+
+
+</div><div class="code">model:<a class="className" href="framework_model_ModelBase.html">ModelBase</a>,
+cache:<a class="className" href="framework_cache_Cache.html">Cache</a>,
+models:<a class="className" href="framework_model_Models.html">Models</a>)</div><br class="clear" /></div></div></div></div><div class="memberSection"><h2 id="Instancemethods">Instance methods</h2><div class="member" id="export"><h3>export</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">override public</span> function <b>export</b> (
+</div><div class="code">id:int = -1) : String</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">id<span class="itemSeparator">:</span></div><div>Optional id of the object that you want to export, if there is no id everything is exported</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Return String formated as a CSV of the data within model </li></ul></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Overrides:</span><div class="item"><ul><li> <a href="framework_model_adapters_AdapterBase.html#export">AdapterBase.export</a> </li></ul></div></div></div></div></div><div class="member" id="load"><h3>load</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>load</b> (
+</div><div class="code">path:String) : void</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">path<span class="itemSeparator">:</span></div><div>The url that this data is going to be loaded from</div></div></div></div></div></div></div><div class="footer"><ul class="docFooter"></ul></div></div></div></body></html>

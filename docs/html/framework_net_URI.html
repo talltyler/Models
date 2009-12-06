@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>URI</title><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><link rel="stylesheet" type="text/css" href="../css/VisDoc.css" /><script src="../js/jquery.js" type="text/javascript">//</script><script src="../js/common.js" type="text/javascript">//</script><script src="../js/doc.js" type="text/javascript">//</script></head><body id="page_framework_net_URI"><script type="text/javascript">VisDoc.initBody();</script><div id="PageTop"><!----></div><div class="VisDoc"><div class="content"><div class="docNav"><ul><li><div id="twistyTOC_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenNotFramed"><a href="#"><span class="icon">+</span>Show TOC</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_show");</script><div id="twistyTOC_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenFramed"><a href="#"><span class="icon">&times;</span>Hide TOC</a></div><span id="twistyTOC_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_hide");</script></li></ul><ul class="accessKeyLinks"><li><a href="#PageTop" accesskey="t"><span class="accessKey">T</span>op</a></li><li><a href="#Summary" accesskey="s"><span class="accessKey">S</span>ummary</a></li><li><a href="#Constructor" accesskey="c"><span class="accessKey">C</span>onstructors</a></li><li><a href="#Instanceproperties" accesskey="l">Instance <span class="accessKey">p</span>roperties</a></li><li><a href="#Instancemethods" accesskey="m">Instance <span class="accessKey">m</span>ethods</a></li></ul><br class="clear" /></div><h1>URI</h1><div class="classProperties"><table cellspacing="0"><tr><th align="left">Kind of class:</th><td>public class</td></tr><tr><th align="left">Package:</th><td><a class="className" href="package-framework_net.html">framework.net</a></td></tr><tr><th align="left">Inherits from:</th><td>none</td></tr><tr><th class="classDetails" align="left">Classpath:</th><td class="classDetails">framework.net.URI</td></tr><tr><th class="classDetails" align="left">File last modified:</th><td class="classDetails">Tuesday, 10 November 2009, 14:17:58</td></tr></table></div><div id="sourceCodeTop" class="sourceCodeView"><div id="twistyViewSourceshow" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">►&nbsp;</span><span class="linkLabel">View source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourceshow");</script><div id="twistyViewSourcehide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">▼&nbsp;</span><span class="linkLabel">Hide source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcehide");</script><div id="twistyViewSourcetoggle" class="twistyContent twistyMakeHidden twistyRememberSetting"><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcetoggle");</script><div class="sourceCode"><textarea rows="10" cols="10" id="source" readonly="readonly">package framework.net
+{    
+    /**
+     *  This class is able to break appart any URI into it's different parts
+     */
+    public class URI
+    {
+        public var rawString:String;
+        public var protocol:String;
+        public var port:int;
+        public var host:String;
+        public var path:String;
+        public var queryString:String;
+        public var queryObject:Object;
+        public var queryLength:int = 0;
+        
+        /**
+         *    @constructor
+         *    @param    rawString     The URI that you would like to break appart
+         */
+        public function URI(rawString:String)
+        {
+            super();
+            this.rawString = rawString;
+            var regex:RegExp = /((?P&lt;protocol>[a-zA-Z]+: \/\/)   (?P&lt;host>[^:\/]*) (:(?P&lt;port>\d+))?)?  (?P&lt;path>[^?]*)? ((?P&lt;query>.*))? /x; 
+            var match:* = regex.exec(rawString);
+            if (match){
+                protocol = Boolean(match.protocol) ? match.protocol : "http://";
+                protocol = protocol.substr(0, protocol.indexOf("://"));
+                host = match.host || null;
+                port = match.port ? int(match.port) : 80;
+                path = match.path;
+                queryString = match.query;
+                if (queryString){
+                    queryObject = {};
+                    queryString = queryString.substr(1);
+                    var value:String;
+                    var varName:String;
+                    for each (var pair:String in queryString.split("&amp;")){
+                        varName = pair.split("=")[0];
+                        value = pair.split("=")[1];
+                        queryObject[varName] = value;
+                        queryLength ++;
+                    }
+                }
+            }else{
+                trace("no match");
+            }
+        }
+        
+        /**
+         *    @param    verbose     Boolean value defining if you would like to get a discriptive output of URI
+         *    @return        String value of URI
+         */
+        public function toString( verbose:Boolean=false ):String
+        {
+            if(verbose){
+                return "[URL] rawString :" + rawString + ", protocol: " + protocol + ", port: " + port + ", host: " + host + ", path: " + path + ". queryLength: "  + queryLength;
+            }
+            return rawString;
+        }
+    }
+}
+
+</textarea></div></div></div><div class="classDescription"><span class="descriptionSummary">This class is able to break appart any URI into it's different parts</span></div><div class="summary"><h2 id="Summary">Summary</h2><div class="docNav"><ul><li><div id="twistyTypeInfo_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide type info</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_on");</script><div id="twistyTypeInfo_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show type info</a></div><span id="twistyTypeInfo_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_off");</script></li><li><div id="twistySort_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Sort by source order</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_on");</script><div id="twistySort_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Sort alphabetically</a></div><span id="twistySort_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_off");</script></li></ul><br class="clear" /></div><div class="memberList"><div class="memberSummaryPart"><span class="title">Constructor</span><ul class="sortable" id="sortul1"><li class="sortli listnum1"><a href="#URI">URI</a><span class="typeInfo"> (rawString:String)</span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance properties</span><ul class="sortable" id="sortul2"><li class="sortli listnum1"><a href="#rawString">rawString</a><span class="typeInfo">  : String</span></li><li class="sortli listnum2"><a href="#protocol">protocol</a><span class="typeInfo">  : String</span></li><li class="sortli listnum3"><a href="#port">port</a><span class="typeInfo">  : int</span></li><li class="sortli listnum4"><a href="#host">host</a><span class="typeInfo">  : String</span></li><li class="sortli listnum5"><a href="#path">path</a><span class="typeInfo">  : String</span></li><li class="sortli listnum6"><a href="#queryString">queryString</a><span class="typeInfo">  : String</span></li><li class="sortli listnum7"><a href="#queryObject">queryObject</a><span class="typeInfo">  : Object</span></li><li class="sortli listnum8"><a href="#queryLength">queryLength</a><span class="typeInfo">  : int</span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance methods</span><ul class="sortable" id="sortul3"><li class="sortli listnum1"><a href="#toString">toString</a><span class="typeInfo"> (verbose:Boolean = false) : String</span></li></ul></div></div></div><div class="memberSection"><h2 id="Constructor">Constructor</h2><div class="member" id="URI"><h3>URI</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>URI</b> (
+</div><div class="code">rawString:String)</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">rawString<span class="itemSeparator">:</span></div><div>The URI that you would like to break appart</div></div></div></div></div></div></div><div class="memberSection"><h2 id="Instanceproperties">Instance properties</h2><div class="member" id="host"><h3>host</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>host</b>:String
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="path"><h3>path</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>path</b>:String
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="port"><h3>port</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>port</b>:int
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="protocol"><h3>protocol</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>protocol</b>:String
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="queryLength"><h3>queryLength</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>queryLength</b>:int = <span class="codeNumber">0</span>
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="queryObject"><h3>queryObject</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>queryObject</b>:Object
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="queryString"><h3>queryString</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>queryString</b>:String
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div><div class="member" id="rawString"><h3>rawString</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>rawString</b>:String
+</div><div class="floatbox"><span class="access">(read,write)</span></div><br class="clear" /></div></div></div></div><div class="memberSection"><h2 id="Instancemethods">Instance methods</h2><div class="member" id="toString"><h3>toString</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>toString</b> (
+</div><div class="code">verbose:Boolean = false) : String</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">verbose<span class="itemSeparator">:</span></div><div>Boolean value defining if you would like to get a discriptive output of URI</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> String value of URI </li></ul></div></div></div></div></div></div><div class="footer"><ul class="docFooter"></ul></div></div></div></body></html>

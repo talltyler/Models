@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head><title>Models</title><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><link rel="stylesheet" type="text/css" href="../css/VisDoc.css" /><script src="../js/jquery.js" type="text/javascript">//</script><script src="../js/common.js" type="text/javascript">//</script><script src="../js/doc.js" type="text/javascript">//</script></head><body id="page_framework_model_Models"><script type="text/javascript">VisDoc.initBody();</script><div id="PageTop"><!----></div><div class="VisDoc"><div class="content"><div class="docNav"><ul><li><div id="twistyTOC_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenNotFramed"><a href="#"><span class="icon">+</span>Show TOC</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_show");</script><div id="twistyTOC_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited activeWhenFramed"><a href="#"><span class="icon">&times;</span>Hide TOC</a></div><span id="twistyTOC_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyTOC_hide");</script></li></ul><ul class="accessKeyLinks"><li><a href="#PageTop" accesskey="t"><span class="accessKey">T</span>op</a></li><li><a href="#Summary" accesskey="s"><span class="accessKey">S</span>ummary</a></li><li><a href="#Constructor" accesskey="c"><span class="accessKey">C</span>onstructors</a></li><li><a href="#Instanceproperties" accesskey="l">Instance <span class="accessKey">p</span>roperties</a></li><li><a href="#Instancemethods" accesskey="m">Instance <span class="accessKey">m</span>ethods</a></li><li><a href="#Eventhandlers" accesskey="e"><span class="accessKey">E</span>vent handlers</a></li></ul><br class="clear" /></div><h1>Models</h1><div class="classProperties"><table cellspacing="0"><tr><th align="left">Kind of class:</th><td>public class</td></tr><tr><th align="left">Package:</th><td><a class="className" href="package-framework_model.html">framework.model</a></td></tr><tr><th align="left">Inherits from:</th><td>EventDispatcher</td></tr><tr><th class="classDetails" align="left">Classpath:</th><td class="classDetails">framework.model.Models</td></tr><tr><th class="classDetails" align="left">File last modified:</th><td class="classDetails">Friday, 04 December 2009, 20:29:32</td></tr></table></div><div id="sourceCodeTop" class="sourceCodeView"><div id="twistyViewSourceshow" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">►&nbsp;</span><span class="linkLabel">View source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourceshow");</script><div id="twistyViewSourcehide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting twistyAnimate"><a href="#"><span class="icon">▼&nbsp;</span><span class="linkLabel">Hide source</span></a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcehide");</script><div id="twistyViewSourcetoggle" class="twistyContent twistyMakeHidden twistyRememberSetting"><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("twistyViewSourcetoggle");</script><div class="sourceCode"><textarea rows="10" cols="10" id="source" readonly="readonly">package framework.model 
+{
+    import flash.events.*;
+    
+    import framework.cache.*;
+    import framework.utils.*;
+    
+    public class Models extends EventDispatcher
+    {
+        // Models by name
+        private var _byName:Object = {};
+        private var _adaptersByModel:Object = {};
+        private var _modelColumns:Object = {};
+        private var _cache:Cache;
+        private var _associations:Array;
+        private var _loadingModels:Boolean;
+        private var _loadingQue:Array = [];
+        
+        /**
+         *    @constructor
+         *    @param    cache     Optional reference to the object that all of your model data will be stored
+         */
+        public function Models( cache:Cache=null )
+        {
+            super();
+            _cache = cache||new Cache();
+            _associations = _cache["associations"] = [];
+            addEventListener("modelLoaded", onLoad);
+        }
+        
+        /**
+         *    Add many model Class objects to this models object,
+         *    a model can not be added to 
+         *    @param    ...classes     A rest param of classes to be added
+         */
+        public function register( ...classes ):void
+        {
+            for each( var clazz:Class in classes ) {
+                add( clazz );
+            }
+        }
+        
+        /**
+         *    Add one model class to this Models object
+         *    @param    clazz    The class that you want to have added to
+         */
+        public function add( clazz:Class ):void
+        {
+            var name:String = StringUtils.className( clazz );
+            _byName[ name ] = clazz;
+            ModelBase.init( this );
+            var instance:* = new clazz();
+            _adaptersByModel[ name ] = instance.getAdapter();
+            _cache[ name ] = [];
+            _modelColumns[ name ] = [];
+        }
+        
+        /**
+         *    Load data and convert to native objects, your adapter should define the datas format
+         *    @param    name     The models names that you are loading data into
+         *    @param    path     The url that this data is going to be loaded from
+         */
+        public function load( name:String, path:String ):void
+        {
+            if( !_loadingModels ){
+                _loadingModels = true;
+                _adaptersByModel[ name ].load( path );
+            }else{
+                _loadingQue.push( { name:name, path:path } );
+            }
+        }
+        
+        /**
+         *    The cache is where all of your model information is saved.
+         *    This includes association and model instances
+         *    @return        Returns a Cache 
+         */
+        public function get cache() : Cache
+        {
+            return _cache;
+        }
+        
+        /**
+         *    If you need a models Class of a certain type this method will return that
+         *    @param    name     The models names that you are loading data into
+         *    @return    Returns the Class object for a model with this name, the name is case sensitive
+         */
+        public function getModel( name:String ) : Class
+        {
+            return _byName[ name ];
+        }
+        
+        /**
+         *    Add a instance of a model into the cache
+         *    @param    name     The models names that you are loading data into
+         *    @param    obj          The models instance that you are saving into the model Array
+         *    @return        Returns the index within the Array that the model has beed added at
+         */
+        public function push( name:String, obj:* ):int
+        {
+            return _cache[ name ].push( obj );
+        }
+        
+        /**
+         *    Get all of the columns within a model as an Array
+         *    @param    name     The models names that you are loading data into
+         *    @return        Returns an Array of all of the columns with in this model
+         */
+        public function columns( name:String ):Array
+        {
+            if( _modelColumns[ name ] == null ){
+                _modelColumns[ name ] = [];
+            }
+            return _modelColumns[ name ];
+        }
+        
+        /**
+         *    Create an instance of a model
+         *    @param    name     The models names that you are loading data into
+         *    @return        Return the instance that has been create
+         */
+        public function create( name:String, params:Object=null ) : *
+        {
+            var result:* = new _byName[ name ];
+            if( !params ) params = {};
+
+            var index:int = _cache[name].push( result );
+
+            for(var prop:String in params ){
+                if( params[prop] is Array ) {
+                    var associatedObjects:Array = []
+                    if( isAssociatedProperty( name, prop ) ) {
+                        for each(var item:Object in params[prop]){
+                            item[ name.toLowerCase() + "_id" ] = index;
+                            if( item is ModelBase ) {
+                                associatedObjects.push( item );
+                            }else{
+                                associatedObjects.push( getAssociationForProperty( name, prop ).create( item ) );
+                            }
+                        }
+                        result[prop] = associatedObjects;
+                    }else{
+                        trace( name, "is not associated with", prop );
+                    }
+                }else{
+                    if( params[prop] is ModelBase ) {
+                        if( _modelColumns[ name ].indexOf( prop + "_id" ) != -1 ) {
+                            result[prop] = params[prop];
+                            result[prop + "_id"] = params[prop].id;
+                            result[prop][name.toLowerCase()] = result;
+                            result[prop][name.toLowerCase() + "_id"] = index;
+                        }else{
+                            trace( name, "is not associated with", prop );
+                        }
+                    }else if( typeof( params[prop] ) == "object" ){
+                        result[prop] = _byName[prop][create]( params[prop] );
+                    }else{
+                        result[prop] = params[prop];
+                    }
+                }
+            }
+            result.id = index;
+            return result;
+        }
+        
+        /**
+         *    Find models within the cache relative to the condistions passed in
+         *    @param    name     The models names that you are loading data into
+         *    @param    args     The Array of arguments that will be sent to the find method
+         *    @return        Return the model object(s) returned, either as an Array or the instance
+         */
+        public function find( name:String, args:Array ) : *
+        {
+            var result:*
+            var type:String = args[0]
+            var a:Array = [name];
+            args.shift(); 
+            a.push.apply(null,args);
+            switch(type){
+                case "first":             
+                    result = first.apply(null, a); 
+                    break;
+                case "last":  
+                    result = last.apply(null, a); 
+                    break;
+                case "all":   
+                    result = all.apply(null, a); 
+                    break;
+                default :       
+                    result = findById.apply(null, a); 
+                    break;
+            }
+            return result
+        }
+        
+        /**
+         *    Find all the models within the cache relative to the condistions passed in
+         *    @param    name          The models names that you are loading data into
+         *    @param    conditions     An object of name value pairs that must be equal to the instances that are found
+         *    @param    limit          The max number of enteries that can be returned
+         *    @param    offset          The index that the results will start at
+         *    @param    sortOnFields The columns that you want to sort by in the order priority, ["a", "b", "c"]
+         *    @param    sortOptions  The way that you would like to sort these values, [Array.DESCENDING, Array.NUMERIC, Array.CASEINSENSITIVE]
+         *    @return    Returns the model object(s) as an Array
+         */
+        public function all( name:String, conditions:Object=null, limit:int=0, offset:int=0, sortOnFields:Object=null, sortOptions:Object=null ):Array
+        {
+            var all:Array = _cache[name];
+            var result:Array = []
+            var length:int = limit||all.length
+            for( var i:int=offset; i &lt; length; i+= 1 ){
+                var item:Object = all[i];
+                var conditionLength:int = 0;
+                var matchLength:int = 0;
+                if(conditions != null){
+                    for( var condition:String in conditions ){
+                        if( item[condition] &amp;&amp; conditions[condition] &amp;&amp; item[condition] == conditions[condition] ) {
+                            matchLength++;
+                        }
+                        conditionLength++;
+                    }
+                    if( matchLength == conditionLength ){
+                        result.push( item );
+                    }
+                }else{
+                    result.push( item );
+                }
+            }
+            if( (!conditionLength || result.length) &amp;&amp; sortOnFields ){
+                result = result.sortOn(sortOnFields, sortOptions);
+            }
+            return result
+        }
+        
+        /**
+         *    Find the first model within the cache relative to the condistions passed in
+         *    @param    name          The models names that you are loading data into
+         *    @param    conditions     An object of name value pairs that must be equal to the instances that are found
+         *    @param    limit          The max number of enteries that can be returned
+         *    @param    offset          The index that the results will start at
+         *    @param    sortOnFields The columns that you want to sort by in the order priority, ["a", "b", "c"]
+         *    @param    sortOptions  The way that you would like to sort these values, [Array.DESCENDING, Array.NUMERIC, Array.CASEINSENSITIVE]
+         *    @return    Returns the model object instance
+         */
+        public function first( name:String, conditions:Object=null, limit:int=0, offset:int=0, sortOnFields:Object=null, sortOptions:Object=null ) : *
+        {    
+            var result:Array = all( name, conditions, limit, offset, sortOnFields, sortOptions );
+            return result[ 0 ];
+        }
+        
+        /**
+         *    Find the last model within the cache relative to the condistions passed in
+         *    @param    name          The models names that you are loading data into
+         *    @param    conditions     An object of name value pairs that must be equal to the instances that are found
+         *    @param    limit          The max number of enteries that can be returned
+         *    @param    offset          The index that the results will start at
+         *    @param    sortOnFields The columns that you want to sort by in the order priority, ["a", "b", "c"]
+         *    @param    sortOptions  The way that you would like to sort these values, [Array.DESCENDING, Array.NUMERIC, Array.CASEINSENSITIVE]
+         *    @return    Returns the model object instance
+         */
+        public function last( name:String, conditions:Object=null, limit:int=0, offset:int=0, sortOnFields:Object=null, sortOptions:Object=null ) : *
+        {    
+            var result:Array = all( name, conditions, limit, offset, sortOnFields, sortOptions );
+            return result[ result.length-1 ];
+        }
+        
+        /**
+         *    Find the model within the cache that has a spacific id
+         *    @param    name The models names that you are loading data into
+         *    @param    id     The id of the model objecs instace
+         *    @return    Returns the model object instance
+         */
+        public function findById( name:String, id:int ) : *
+        {
+            var result:Object
+            for each( var item:Object in _cache[name] ){
+                if( item.id == id ) result = item;
+            }
+            return result
+        }
+        
+        /**
+         *    A dynamic find method that is called internally if something like this,
+         *    
+         *    @param    name     The models names that you are loading data into
+         *    @param    type    The the column that you are trying to find by
+         *    @param    ...rest    A rest param that gets past to the find all method
+         *    @return    Returns the model object(s) as an Array
+         */
+        public function findBy( name:String, type:String, ...rest ) : Array
+        {
+            var a:Array = [name];
+            var results:Object = all.apply( null, a.push.apply( null, rest ) );
+            var result:Array = [];
+            for each( var item:Object in results ){
+                if( item[type] == rest[0] ) result.push( item );
+            }
+            return result;
+        }
+        
+        /**
+         *    Get an association object for a given model name
+         *    @param    name     The models names that you are loading data into
+         *    @param    prop     The property on this model that might have an association
+         *    @return        Returns the association object for a given model name
+         */
+        public function getAssociationForProperty( name:String, prop:String ) : Object
+        {
+            return _associations[ (name +"_"+ prop as String).toLowerCase() ];
+        }
+        
+        /**
+         *    Check if this model has an association for a given model name
+         *    @param    name     The models names that you are loading data into
+         *    @param    prop     The property on this model that might have an association
+         *    @return    Returns Boolean of true if given model has association for property
+         */
+        public function isAssociatedProperty( name:String, prop:String ) : Boolean
+        {
+            return _associations.hasOwnProperty( (name +"_"+ prop as String).toLowerCase() );
+        }
+        
+        /**
+         *    Export the data from all of the model objects of this type in the models adapter type
+         *    @param    name     The models names that you are loading data into
+         *    @return    Returns a String formated relative to the models adapter type
+         */
+        public function export( name:String ):String
+        {
+            return _adaptersByModel[ name ].export();
+        }
+        
+        /**
+         *    Delete a object from the cache
+         *    @param    name     The models names that you are loading data into
+         *    @param    object     The instance that you want to delete
+         */
+        public function destroy( name:String, object:* ):void
+        {
+            var index:int = _cache[ name ].indexOf( object );
+            if( index != -1 ) {
+                _cache[ name ].splice( index, 1 );
+            }
+        }
+        
+        /**
+         *    @private
+         */
+        internal function addAssociation( targetName:String, kind:String, name:String, clazz:Class ) : void
+        {
+            var columns:Array = _modelColumns[ targetName ];
+            if( columns.indexOf( name.toLowerCase() ) == -1 ){
+                columns.push( name.toLowerCase() );
+            }
+            _associations[ (targetName +"_"+ name as String).toLowerCase() ] = { name:name, kind:kind, "class":clazz }
+        }
+        
+        /**
+         *    @private
+         */
+        private function onLoad( event:Event ):void
+        {
+            if( _loadingQue.length == 0 ){
+                _loadingModels = false;
+                dispatchEvent( new Event( Event.COMPLETE ) );
+            }else{
+                var obj:Object = _loadingQue.shift();
+                _adaptersByModel[ obj.name ].load( obj.path );
+            }
+        }
+    }
+}
+</textarea></div></div></div><div class="classDescription"></div><div class="summary"><h2 id="Summary">Summary</h2><div class="docNav"><ul><li><div id="twistyTypeInfo_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide type info</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_on");</script><div id="twistyTypeInfo_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show type info</a></div><span id="twistyTypeInfo_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleTypeInfo_off");</script></li><li><div id="twistySummaries_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Hide summaries</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSummaries_on");</script><div id="twistySummaries_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Show summaries</a></div><span id="twistySummaries_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSummaries_off");</script></li><li><div id="twistySort_show" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">&times;</span>Sort by source order</a></div><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_on");</script><div id="twistySort_hide" class="twistyTrigger twikiUnvisited twikiMakeVisible twistyInited twistyRememberSetting"><a href="#"><span class="icon">+</span>Sort alphabetically</a></div><span id="twistySort_toggle" class="twistyContent"><!----></span><script type="text/javascript">twiki.JQueryTwistyPlugin.initId("toggleSort_off");</script></li></ul><br class="clear" /></div><div class="memberList"><div class="memberSummaryPart"><span class="title">Constructor</span><ul class="sortable" id="sortul1"><li class="sortli listnum1"><a href="#Models">Models</a><span class="typeInfo"> (cache:<a class="className" href="framework_cache_Cache.html">Cache</a> = null)</span></li></ul></div><div class="memberSummaryPart"><span class="title">Instance properties</span><ul class="sortable" id="sortul2"><li class="sortli listnum1"><a href="#cache">cache</a><span class="typeInfo">  : <a class="className" href="framework_cache_Cache.html">Cache</a></span><ul class="summary"><li>    The cache is where all of your model information is saved.</li></ul></li></ul></div><div class="memberSummaryPart"><span class="title">Instance methods</span><ul class="sortable" id="sortul3"><li class="sortli listnum1"><a href="#register">register</a><span class="typeInfo"> (classes) : void</span><ul class="summary"><li>    Add many model Class objects to this models object,</li></ul></li><li class="sortli listnum2"><a href="#add">add</a><span class="typeInfo"> (clazz:Class) : void</span><ul class="summary"><li>    Add one model class to this Models object</li></ul></li><li class="sortli listnum3"><a href="#load">load</a><span class="typeInfo"> (name:String, path:String) : void</span><ul class="summary"><li>    Load data and convert to native objects, your adapter should define the datas format</li></ul></li><li class="sortli listnum4"><a href="#getModel">getModel</a><span class="typeInfo"> (name:String) : Class</span><ul class="summary"><li>    If you need a models Class of a certain type this method will return that</li></ul></li><li class="sortli listnum5"><a href="#push">push</a><span class="typeInfo"> (name:String, obj:*) : int</span><ul class="summary"><li>    Add a instance of a model into the cache</li></ul></li><li class="sortli listnum6"><a href="#columns">columns</a><span class="typeInfo"> (name:String) : Array</span><ul class="summary"><li>    Get all of the columns within a model as an Array</li></ul></li><li class="sortli listnum7"><a href="#create">create</a><span class="typeInfo"> (name:String, params:Object = null) : *</span><ul class="summary"><li>    Create an instance of a model</li></ul></li><li class="sortli listnum8"><a href="#find">find</a><span class="typeInfo"> (name:String, args:Array) : *</span><ul class="summary"><li>    Find models within the cache relative to the condistions passed in</li></ul></li><li class="sortli listnum9"><a href="#all">all</a><span class="typeInfo"> (name:String, conditions:Object = null, limit:int = 0, offset:int = 0, sortOnFields:Object = null, sortOptions:Object = null) : Array</span><ul class="summary"><li>    Find all the models within the cache relative to the condistions passed in</li></ul></li><li class="sortli listnum10"><a href="#first">first</a><span class="typeInfo"> (name:String, conditions:Object = null, limit:int = 0, offset:int = 0, sortOnFields:Object = null, sortOptions:Object = null) : *</span><ul class="summary"><li>    Find the first model within the cache relative to the condistions passed in</li></ul></li><li class="sortli listnum11"><a href="#last">last</a><span class="typeInfo"> (name:String, conditions:Object = null, limit:int = 0, offset:int = 0, sortOnFields:Object = null, sortOptions:Object = null) : *</span><ul class="summary"><li>    Find the last model within the cache relative to the condistions passed in</li></ul></li><li class="sortli listnum12"><a href="#findById">findById</a><span class="typeInfo"> (name:String, id:int) : *</span><ul class="summary"><li>    Find the model within the cache that has a spacific id</li></ul></li><li class="sortli listnum13"><a href="#findBy">findBy</a><span class="typeInfo"> (name:String, type:String, rest) : Array</span><ul class="summary"><li>    A dynamic find method that is called internally if something like this,</li></ul></li><li class="sortli listnum14"><a href="#getAssociationForProperty">getAssociationForProperty</a><span class="typeInfo"> (name:String, prop:String) : Object</span><ul class="summary"><li>    Get an association object for a given model name</li></ul></li><li class="sortli listnum15"><a href="#isAssociatedProperty">isAssociatedProperty</a><span class="typeInfo"> (name:String, prop:String) : Boolean</span><ul class="summary"><li>    Check if this model has an association for a given model name</li></ul></li><li class="sortli listnum16"><a href="#export">export</a><span class="typeInfo"> (name:String) : String</span><ul class="summary"><li>    Export the data from all of the model objects of this type in the models adapter type</li></ul></li><li class="sortli listnum17"><a href="#destroy">destroy</a><span class="typeInfo"> (name:String, object:*) : void</span><ul class="summary"><li>    Delete a object from the cache</li></ul></li></ul></div></div></div><div class="memberSection"><h2 id="Constructor">Constructor</h2><div class="member" id="Models"><h3>Models</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>Models</b> (
+</div><div class="code">cache:<a class="className" href="framework_cache_Cache.html">Cache</a> = null)</div><br class="clear" /></div></div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">cache<span class="itemSeparator">:</span></div><div>Optional reference to the object that all of your model data will be stored</div></div></div></div></div></div></div><div class="memberSection"><h2 id="Instanceproperties">Instance properties</h2><div class="member" id="cache"><h3>cache</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> <b>cache</b>:<a class="className" href="framework_cache_Cache.html">Cache</a>
+</div><div class="floatbox"><span class="access">(read)</span></div><br class="clear" /></div></div><div class="description">     The cache is where all of your model information is saved.<br />This includes association and model instances </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns a Cache </li></ul></div></div></div></div></div></div><div class="memberSection"><h2 id="Instancemethods">Instance methods</h2><div class="member" id="add"><h3>add</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>add</b> (
+</div><div class="code">clazz:Class) : void</div><br class="clear" /></div></div><div class="description">     Add one model class to this Models object </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">clazz<span class="itemSeparator">:</span></div><div>The class that you want to have added to</div></div></div></div></div></div><div class="member" id="all"><h3>all</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>all</b> (
+
+
+
+
+
+</div><div class="code">name:String,
+conditions:Object = null,
+limit:int = 0,
+offset:int = 0,
+sortOnFields:Object = null,
+sortOptions:Object = null) : Array</div><br class="clear" /></div></div><div class="description">     Find all the models within the cache relative to the condistions passed in </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name        <span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">conditions  <span class="itemSeparator">:</span></div><div>An object of name value pairs that must be equal to the instances that are found</div></div><div class="item"><div class="floatbox code colorizedCode">limit       <span class="itemSeparator">:</span></div><div>The max number of enteries that can be returned</div></div><div class="item"><div class="floatbox code colorizedCode">offset      <span class="itemSeparator">:</span></div><div>The index that the results will start at</div></div><div class="item"><div class="floatbox code colorizedCode">sortOnFields<span class="itemSeparator">:</span></div><div>The columns that you want to sort by in the order priority, ["a", "b", "c"]</div></div><div class="item"><div class="floatbox code colorizedCode">sortOptions <span class="itemSeparator">:</span></div><div>The way that you would like to sort these values, [Array.DESCENDING, Array.NUMERIC, Array.CASEINSENSITIVE]</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the model object(s) as an Array </li></ul></div></div></div></div></div><div class="member" id="columns"><h3>columns</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>columns</b> (
+</div><div class="code">name:String) : Array</div><br class="clear" /></div></div><div class="description">     Get all of the columns within a model as an Array </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns an Array of all of the columns with in this model </li></ul></div></div></div></div></div><div class="member" id="create"><h3>create</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>create</b> (
+
+</div><div class="code">name:String,
+params:Object = null) : *</div><br class="clear" /></div></div><div class="description">     Create an instance of a model </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Return the instance that has been create </li></ul></div></div></div></div></div><div class="member" id="destroy"><h3>destroy</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>destroy</b> (
+
+</div><div class="code">name:String,
+object:*) : void</div><br class="clear" /></div></div><div class="description">     Delete a object from the cache </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name  <span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">object<span class="itemSeparator">:</span></div><div>The instance that you want to delete</div></div></div></div></div></div><div class="member" id="export"><h3>export</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>export</b> (
+</div><div class="code">name:String) : String</div><br class="clear" /></div></div><div class="description">     Export the data from all of the model objects of this type in the models adapter type </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns a String formated relative to the models adapter type </li></ul></div></div></div></div></div><div class="member" id="find"><h3>find</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>find</b> (
+
+</div><div class="code">name:String,
+args:Array) : *</div><br class="clear" /></div></div><div class="description">     Find models within the cache relative to the condistions passed in </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">args<span class="itemSeparator">:</span></div><div>The Array of arguments that will be sent to the find method</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Return the model object(s) returned, either as an Array or the instance </li></ul></div></div></div></div></div><div class="member" id="findBy"><h3>findBy</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>findBy</b> (
+
+
+</div><div class="code">name:String,
+type:String,
+rest) : Array</div><br class="clear" /></div></div><div class="description">     A dynamic find method that is called internally if something like this, </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name   <span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">type   <span class="itemSeparator">:</span></div><div>The the column that you are trying to find by</div></div><div class="item"><div class="floatbox code colorizedCode">...rest<span class="itemSeparator">:</span></div><div>A rest param that gets past to the find all method</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the model object(s) as an Array </li></ul></div></div></div></div></div><div class="member" id="findById"><h3>findById</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>findById</b> (
+
+</div><div class="code">name:String,
+id:int) : *</div><br class="clear" /></div></div><div class="description">     Find the model within the cache that has a spacific id </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">id  <span class="itemSeparator">:</span></div><div>The id of the model objecs instace</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the model object instance </li></ul></div></div></div></div></div><div class="member" id="first"><h3>first</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>first</b> (
+
+
+
+
+
+</div><div class="code">name:String,
+conditions:Object = null,
+limit:int = 0,
+offset:int = 0,
+sortOnFields:Object = null,
+sortOptions:Object = null) : *</div><br class="clear" /></div></div><div class="description">     Find the first model within the cache relative to the condistions passed in </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name        <span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">conditions  <span class="itemSeparator">:</span></div><div>An object of name value pairs that must be equal to the instances that are found</div></div><div class="item"><div class="floatbox code colorizedCode">limit       <span class="itemSeparator">:</span></div><div>The max number of enteries that can be returned</div></div><div class="item"><div class="floatbox code colorizedCode">offset      <span class="itemSeparator">:</span></div><div>The index that the results will start at</div></div><div class="item"><div class="floatbox code colorizedCode">sortOnFields<span class="itemSeparator">:</span></div><div>The columns that you want to sort by in the order priority, ["a", "b", "c"]</div></div><div class="item"><div class="floatbox code colorizedCode">sortOptions <span class="itemSeparator">:</span></div><div>The way that you would like to sort these values, [Array.DESCENDING, Array.NUMERIC, Array.CASEINSENSITIVE]</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the model object instance </li></ul></div></div></div></div></div><div class="member" id="getAssociationForProperty"><h3>getAssociationForProperty</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>getAssociationForProperty</b> (
+
+</div><div class="code">name:String,
+prop:String) : Object</div><br class="clear" /></div></div><div class="description">     Get an association object for a given model name </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">prop<span class="itemSeparator">:</span></div><div>The property on this model that might have an association</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the association object for a given model name </li></ul></div></div></div></div></div><div class="member" id="getModel"><h3>getModel</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>getModel</b> (
+</div><div class="code">name:String) : Class</div><br class="clear" /></div></div><div class="description">     If you need a models Class of a certain type this method will return that </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the Class object for a model with this name, the name is case sensitive </li></ul></div></div></div></div></div><div class="member" id="isAssociatedProperty"><h3>isAssociatedProperty</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>isAssociatedProperty</b> (
+
+</div><div class="code">name:String,
+prop:String) : Boolean</div><br class="clear" /></div></div><div class="description">     Check if this model has an association for a given model name </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">prop<span class="itemSeparator">:</span></div><div>The property on this model that might have an association</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns Boolean of true if given model has association for property </li></ul></div></div></div></div></div><div class="member" id="last"><h3>last</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>last</b> (
+
+
+
+
+
+</div><div class="code">name:String,
+conditions:Object = null,
+limit:int = 0,
+offset:int = 0,
+sortOnFields:Object = null,
+sortOptions:Object = null) : *</div><br class="clear" /></div></div><div class="description">     Find the last model within the cache relative to the condistions passed in </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name        <span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">conditions  <span class="itemSeparator">:</span></div><div>An object of name value pairs that must be equal to the instances that are found</div></div><div class="item"><div class="floatbox code colorizedCode">limit       <span class="itemSeparator">:</span></div><div>The max number of enteries that can be returned</div></div><div class="item"><div class="floatbox code colorizedCode">offset      <span class="itemSeparator">:</span></div><div>The index that the results will start at</div></div><div class="item"><div class="floatbox code colorizedCode">sortOnFields<span class="itemSeparator">:</span></div><div>The columns that you want to sort by in the order priority, ["a", "b", "c"]</div></div><div class="item"><div class="floatbox code colorizedCode">sortOptions <span class="itemSeparator">:</span></div><div>The way that you would like to sort these values, [Array.DESCENDING, Array.NUMERIC, Array.CASEINSENSITIVE]</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the model object instance </li></ul></div></div></div></div></div><div class="member" id="load"><h3>load</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>load</b> (
+
+</div><div class="code">name:String,
+path:String) : void</div><br class="clear" /></div></div><div class="description">     Load data and convert to native objects, your adapter should define the datas format </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">path<span class="itemSeparator">:</span></div><div>The url that this data is going to be loaded from</div></div></div></div></div></div><div class="member" id="push"><h3>push</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>push</b> (
+
+</div><div class="code">name:String,
+obj:*) : int</div><br class="clear" /></div></div><div class="description">     Add a instance of a model into the cache </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">name<span class="itemSeparator">:</span></div><div>The models names that you are loading data into</div></div><div class="item"><div class="floatbox code colorizedCode">obj <span class="itemSeparator">:</span></div><div>The models instance that you are saving into the model Array</div></div></div></div><div class="boxedElem"><div class="contentHolder"><span class="title">Returns:</span><div class="item"><ul><li> Returns the index within the Array that the model has beed added at </li></ul></div></div></div></div></div><div class="member" id="register"><h3>register</h3><div class="fullMemberString"><div class="floatholder"><div class="floatbox code"><span class="memberAccess">public</span> function <b>register</b> (
+</div><div class="code">classes) : void</div><br class="clear" /></div></div><div class="description">     Add many model Class objects to this models object,<br />a model can not be added to  </div><div class="boxWithBorder"><div class="boxedElem"><div class="contentHolder"><span class="title">Parameters:</span><div class="item"><div class="floatbox code colorizedCode">...classes<span class="itemSeparator">:</span></div><div>A rest param of classes to be added</div></div></div></div></div></div></div><div class="footer"><ul class="docFooter"></ul></div></div></div></body></html>
